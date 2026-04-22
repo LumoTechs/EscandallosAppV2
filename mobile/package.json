@@ -3,7 +3,6 @@
   "main": "index",
   "version": "1.0.0",
   "scripts": {
-  "postinstall": "patch-package",
   "start": "expo start --web",
   "build": "expo export --platform web",
   "build:web": "expo export --platform web"
