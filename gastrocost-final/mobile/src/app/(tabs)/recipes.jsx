@@ -1,0 +1,657 @@
+import React from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  TextInput,
+  ActivityIndicator,
+  TouchableOpacity,
+  Alert,
+} from "react-native";
+import { useEffect, useState, useMemo } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import {
+  Plus,
+  Minus,
+  Trash2,
+  Search,
+  AlertCircle,
+  ArrowLeft,
+} from "lucide-react-native";
+import Svg, { Path, Circle } from "react-native-svg";
+
+const T = {
+  bg: "#FFFDF9",
+  surface: "#FFFFFF",
+  line: "#EFE8DD",
+  lineStrong: "#E2D8C7",
+  ink: "#2B1D12",
+  inkSoft: "#6B5B4A",
+  muted: "#9A8D7A",
+  primary: "#B2451C",
+  primarySoft: "#FBEAD9",
+  accent: "#D98324",
+  accentSoft: "#FDF2E2",
+  ok: "#4F7A3C",
+  okSoft: "#ECF3E5",
+  serif: "Georgia",
+};
+
+function EmptyPeaceful() {
+  return (
+    <Svg width={140} height={100} viewBox="0 0 140 100">
+      <Circle cx="70" cy="60" r="34" fill={T.primarySoft} />
+      <Circle cx="70" cy="60" r="34" stroke={T.accent} strokeWidth="1" fill="none" opacity="0.3" />
+      <Circle cx="70" cy="60" r="10" fill={T.primary} />
+      <Path d="M65 60 L 69 64 L 76 57" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+const fmtEUR = (n) => `€${Number(n).toFixed(2)}`;
+
+export default function Recipes() {
+  const insets = useSafeAreaInsets();
+  const [recipes, setRecipes] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+
+  const [newName, setNewName] = useState("");
+  const [newSalePrice, setNewSalePrice] = useState("");
+  const [newIngredients, setNewIngredients] = useState([]);
+  const [ingSearch, setIngSearch] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const [recipesRes, productsRes] = await Promise.all([
+        fetch("/api/recipes/list"),
+        fetch("/api/products/list"),
+      ]);
+      const rd = await recipesRes.json();
+      const pd = await productsRes.json();
+      setRecipes(rd.recipes || []);
+      setProducts(pd.products || []);
+    } catch (e) {
+      console.error("Error:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- Creación en vivo ---
+  const filteredForAdd = useMemo(() => {
+    if (!ingSearch.trim()) return [];
+    const q = ingSearch.toLowerCase().trim();
+    return products
+      .filter((p) => p.name.toLowerCase().includes(q))
+      .filter((p) => !newIngredients.find((i) => i.product_id === p.id))
+      .slice(0, 6);
+  }, [ingSearch, products, newIngredients]);
+
+  const liveCost = useMemo(() => {
+    return newIngredients.reduce((sum, ing) => {
+      const p = products.find((pr) => pr.id === ing.product_id);
+      return sum + (p ? parseFloat(p.current_price || 0) * parseFloat(ing.quantity || 0) : 0);
+    }, 0);
+  }, [newIngredients, products]);
+
+  const liveSale = parseFloat(newSalePrice) || 0;
+  const liveMargin = liveSale - liveCost;
+  const liveFoodCost = liveSale > 0 ? (liveCost / liveSale) * 100 : 0;
+
+  const addIng = (productId) => {
+    setNewIngredients([...newIngredients, { product_id: productId, quantity: 0.1 }]);
+    setIngSearch("");
+  };
+
+  const updateQty = (productId, qty) => {
+    setNewIngredients(
+      newIngredients.map((i) =>
+        i.product_id === productId ? { ...i, quantity: parseFloat(qty) || 0 } : i
+      )
+    );
+  };
+
+  const removeIng = (productId) => {
+    setNewIngredients(newIngredients.filter((i) => i.product_id !== productId));
+  };
+
+  const cancel = () => {
+    setCreating(false);
+    setNewName("");
+    setNewSalePrice("");
+    setNewIngredients([]);
+    setIngSearch("");
+  };
+
+  const save = async () => {
+    if (!newName || !newSalePrice || newIngredients.length === 0) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/recipes/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newName,
+          sale_price: parseFloat(newSalePrice),
+          ingredients: newIngredients.map((i) => {
+            const p = products.find((pr) => pr.id === i.product_id);
+            return {
+              product_id: i.product_id,
+              quantity: i.quantity,
+              unit: p?.unit || null,
+            };
+          }),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        Alert.alert("Error", err.error || "No se pudo guardar");
+        setSaving(false);
+        return;
+      }
+      cancel();
+      await loadData();
+    } catch (e) {
+      Alert.alert("Error", e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ======= VISTA DE CREACIÓN =======
+  if (creating) {
+    return (
+      <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: insets.top }}>
+        <StatusBar style="dark" />
+
+        <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 20 }}>
+          <TouchableOpacity onPress={cancel} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+            <ArrowLeft color={T.inkSoft} size={16} />
+            <Text style={{ fontSize: 13, color: T.inkSoft }}>Volver</Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 11, fontWeight: "600", color: T.accent, letterSpacing: 2, textTransform: "uppercase" }}>
+            Nuevo escandallo
+          </Text>
+          <Text style={{ fontSize: 30, fontFamily: T.serif, color: T.ink, letterSpacing: -0.6, marginTop: 6 }}>
+            Crear receta
+          </Text>
+          <Text style={{ fontSize: 14, color: T.inkSoft, marginTop: 4 }}>
+            Margen calculado en tiempo real
+          </Text>
+        </View>
+
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 120 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Hero live stats */}
+          <View style={{ backgroundColor: T.ink, borderRadius: 20, padding: 20, marginBottom: 16 }}>
+            <Text style={{ fontSize: 10, fontWeight: "600", color: T.accent, letterSpacing: 2, textTransform: "uppercase" }}>
+              Margen en tiempo real
+            </Text>
+            <Text
+              style={{
+                fontSize: 40,
+                fontFamily: T.serif,
+                color: liveMargin >= 0 ? "#fff" : T.accent,
+                letterSpacing: -1,
+                marginTop: 8,
+              }}
+            >
+              {fmtEUR(liveMargin)}
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                marginTop: 16,
+                paddingTop: 16,
+                borderTopWidth: 1,
+                borderTopColor: "rgba(255,255,255,0.12)",
+                gap: 12,
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", letterSpacing: 1 }}>COSTE</Text>
+                <Text style={{ fontSize: 18, color: "#fff", fontFamily: T.serif, marginTop: 3 }}>
+                  {fmtEUR(liveCost)}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", letterSpacing: 1 }}>FOOD COST</Text>
+                <Text
+                  style={{
+                    fontSize: 18,
+                    color: liveFoodCost > 35 ? T.accent : "#fff",
+                    fontFamily: T.serif,
+                    marginTop: 3,
+                  }}
+                >
+                  {liveFoodCost.toFixed(1)}%
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Nombre + PVP */}
+          <View style={{ backgroundColor: T.surface, borderRadius: 16, borderWidth: 1, borderColor: T.line, padding: 20, marginBottom: 14 }}>
+            <Text style={{ fontSize: 10, fontWeight: "600", color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 6 }}>
+              Nombre del plato
+            </Text>
+            <TextInput
+              value={newName}
+              onChangeText={setNewName}
+              placeholder="Ej: Pizza Margherita"
+              placeholderTextColor={T.muted}
+              style={{ fontSize: 18, fontFamily: T.serif, color: T.ink, paddingVertical: 4 }}
+            />
+            <View style={{ height: 1, backgroundColor: T.line, marginVertical: 14 }} />
+            <Text style={{ fontSize: 10, fontWeight: "600", color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 6 }}>
+              Precio de venta (PVP)
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={{ fontSize: 20, color: T.inkSoft }}>€</Text>
+              <TextInput
+                value={newSalePrice}
+                onChangeText={setNewSalePrice}
+                placeholder="0.00"
+                placeholderTextColor={T.muted}
+                keyboardType="decimal-pad"
+                style={{ flex: 1, fontSize: 20, fontFamily: T.serif, color: T.ink, paddingVertical: 4 }}
+              />
+            </View>
+          </View>
+
+          {/* Ingredientes */}
+          <View style={{ backgroundColor: T.surface, borderRadius: 16, borderWidth: 1, borderColor: T.line, padding: 20, marginBottom: 14 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <Text style={{ fontSize: 18, fontFamily: T.serif, color: T.ink, letterSpacing: -0.3 }}>
+                Ingredientes
+              </Text>
+              <Text style={{ fontSize: 12, color: T.inkSoft }}>{newIngredients.length} items</Text>
+            </View>
+
+            {newIngredients.map((ing, idx) => {
+              const p = products.find((pr) => pr.id === ing.product_id);
+              if (!p) return null;
+              const subtotal = parseFloat(p.current_price || 0) * parseFloat(ing.quantity || 0);
+              return (
+                <View
+                  key={ing.product_id}
+                  style={{
+                    paddingVertical: 12,
+                    borderTopWidth: idx > 0 ? 1 : 0,
+                    borderTopColor: T.line,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <View style={{ flex: 1, paddingRight: 8 }}>
+                      <Text style={{ fontSize: 14, fontWeight: "500", color: T.ink }}>{p.name}</Text>
+                      <Text style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
+                        €{Number(p.current_price).toFixed(2)} / {p.unit}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => removeIng(ing.product_id)} style={{ padding: 4 }}>
+                      <Trash2 size={14} color={T.muted} />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                    <TouchableOpacity
+                      onPress={() => updateQty(ing.product_id, Math.max(0, ing.quantity - 0.05))}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: T.line,
+                        backgroundColor: T.bg,
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Minus size={12} color={T.ink} />
+                    </TouchableOpacity>
+                    <TextInput
+                      value={String(ing.quantity)}
+                      onChangeText={(v) => updateQty(ing.product_id, v)}
+                      keyboardType="decimal-pad"
+                      style={{
+                        width: 70,
+                        textAlign: "center",
+                        fontSize: 14,
+                        paddingVertical: 6,
+                        paddingHorizontal: 4,
+                        borderWidth: 1,
+                        borderColor: T.line,
+                        borderRadius: 8,
+                        color: T.ink,
+                      }}
+                    />
+                    <Text style={{ fontSize: 12, color: T.inkSoft }}>{p.unit}</Text>
+                    <TouchableOpacity
+                      onPress={() => updateQty(ing.product_id, ing.quantity + 0.05)}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: T.line,
+                        backgroundColor: T.bg,
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Plus size={12} color={T.ink} />
+                    </TouchableOpacity>
+                    <View style={{ flex: 1, alignItems: "flex-end" }}>
+                      <Text style={{ fontSize: 14, fontWeight: "600", color: T.primary }}>
+                        {fmtEUR(subtotal)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+
+            <View
+              style={{
+                marginTop: newIngredients.length > 0 ? 14 : 0,
+                paddingTop: newIngredients.length > 0 ? 14 : 0,
+                borderTopWidth: newIngredients.length > 0 ? 1 : 0,
+                borderTopColor: T.line,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                  backgroundColor: T.bg,
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                }}
+              >
+                <Search size={14} color={T.muted} />
+                <TextInput
+                  value={ingSearch}
+                  onChangeText={setIngSearch}
+                  placeholder="Añadir ingrediente..."
+                  placeholderTextColor={T.muted}
+                  style={{ flex: 1, paddingVertical: 10, fontSize: 13, color: T.ink }}
+                />
+              </View>
+              {filteredForAdd.length > 0 && (
+                <View
+                  style={{
+                    marginTop: 8,
+                    borderWidth: 1,
+                    borderColor: T.line,
+                    borderRadius: 10,
+                    backgroundColor: T.surface,
+                    overflow: "hidden",
+                  }}
+                >
+                  {filteredForAdd.map((p, idx) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      onPress={() => addIng(p.id)}
+                      activeOpacity={0.7}
+                      style={{
+                        paddingVertical: 10,
+                        paddingHorizontal: 14,
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        borderTopWidth: idx > 0 ? 1 : 0,
+                        borderTopColor: T.line,
+                      }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, color: T.ink, fontWeight: "500" }}>{p.name}</Text>
+                        <Text style={{ fontSize: 11, color: T.muted, marginTop: 1 }}>
+                          €{Number(p.current_price).toFixed(2)} / {p.unit}
+                        </Text>
+                      </View>
+                      <Plus size={14} color={T.primary} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <TouchableOpacity
+              onPress={cancel}
+              style={{
+                flex: 1,
+                paddingVertical: 16,
+                borderWidth: 1,
+                borderColor: T.line,
+                backgroundColor: T.surface,
+                borderRadius: 14,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ fontSize: 14, fontWeight: "600", color: T.ink }}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={save}
+              disabled={!newName || !newSalePrice || newIngredients.length === 0 || saving}
+              style={{
+                flex: 2,
+                paddingVertical: 16,
+                backgroundColor: T.primary,
+                opacity: !newName || !newSalePrice || newIngredients.length === 0 || saving ? 0.4 : 1,
+                borderRadius: 14,
+                alignItems: "center",
+              }}
+            >
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={{ fontSize: 14, fontWeight: "600", color: "#fff" }}>Guardar escandallo</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ======= LISTADO =======
+  return (
+    <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: insets.top }}>
+      <StatusBar style="dark" />
+
+      <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 20 }}>
+        <Text style={{ fontSize: 11, fontWeight: "600", color: T.accent, letterSpacing: 2, textTransform: "uppercase" }}>
+          Escandallos
+        </Text>
+        <Text style={{ fontSize: 30, fontFamily: T.serif, color: T.ink, letterSpacing: -0.6, marginTop: 6 }}>
+          Recetas
+        </Text>
+        <Text style={{ fontSize: 14, color: T.inkSoft, marginTop: 4 }}>
+          Calcula margen y food cost en vivo
+        </Text>
+      </View>
+
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={T.primary} />
+        </View>
+      ) : (
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 120 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {recipes.length === 0 ? (
+            <View style={{ paddingVertical: 48, alignItems: "center" }}>
+              <EmptyPeaceful />
+              <Text style={{ fontSize: 15, fontFamily: T.serif, color: T.ink, marginTop: 12 }}>
+                Sin escandallos
+              </Text>
+              <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 4 }}>
+                Crea el primero para ver márgenes
+              </Text>
+            </View>
+          ) : (
+            <View style={{ gap: 12, marginBottom: 16 }}>
+              {recipes.map((r) => {
+                const cost = parseFloat(r.total_cost || 0);
+                const sale = parseFloat(r.sale_price || 0);
+                const margin = sale - cost;
+                const foodCost = parseFloat(r.actual_food_cost_percentage || 0);
+                const target = parseFloat(r.target_food_cost_percentage || 35);
+                const isRisky = foodCost > target;
+                return (
+                  <View
+                    key={r.id}
+                    style={{
+                      backgroundColor: T.surface,
+                      borderWidth: 1,
+                      borderColor: T.line,
+                      borderRadius: 16,
+                      padding: 20,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        marginBottom: 14,
+                      }}
+                    >
+                      <View style={{ flex: 1, paddingRight: 8 }}>
+                        <Text style={{ fontSize: 18, fontFamily: T.serif, color: T.ink, letterSpacing: -0.3 }}>
+                          {r.name}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 3 }}>
+                          PVP {fmtEUR(sale)}
+                        </Text>
+                      </View>
+                      {isRisky && (
+                        <View
+                          style={{
+                            backgroundColor: T.primarySoft,
+                            paddingHorizontal: 8,
+                            paddingVertical: 3,
+                            borderRadius: 6,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          <AlertCircle size={10} color={T.primary} />
+                          <Text style={{ fontSize: 10, fontWeight: "600", color: T.primary }}>En riesgo</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        gap: 12,
+                        paddingVertical: 14,
+                        borderTopWidth: 1,
+                        borderBottomWidth: 1,
+                        borderColor: T.line,
+                      }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            fontSize: 10,
+                            color: T.muted,
+                            letterSpacing: 1.2,
+                            textTransform: "uppercase",
+                            fontWeight: "600",
+                          }}
+                        >
+                          Margen
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 24,
+                            fontFamily: T.serif,
+                            color: margin >= 0 ? T.ok : T.primary,
+                            marginTop: 4,
+                            letterSpacing: -0.3,
+                          }}
+                        >
+                          {fmtEUR(margin)}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            fontSize: 10,
+                            color: T.muted,
+                            letterSpacing: 1.2,
+                            textTransform: "uppercase",
+                            fontWeight: "600",
+                          }}
+                        >
+                          Food cost
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 24,
+                            fontFamily: T.serif,
+                            color: isRisky ? T.primary : T.ink,
+                            marginTop: 4,
+                            letterSpacing: -0.3,
+                          }}
+                        >
+                          {foodCost.toFixed(1)}%
+                        </Text>
+                      </View>
+                    </View>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginTop: 12,
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, color: T.inkSoft }}>Coste total</Text>
+                      <Text style={{ fontSize: 14, fontWeight: "600", color: T.ink }}>{fmtEUR(cost)}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          <TouchableOpacity
+            onPress={() => setCreating(true)}
+            activeOpacity={0.88}
+            style={{
+              backgroundColor: T.primary,
+              borderRadius: 14,
+              padding: 18,
+              flexDirection: "row",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <Plus color="#fff" size={18} strokeWidth={2.2} />
+            <Text style={{ fontSize: 15, fontWeight: "600", color: "#fff" }}>Nuevo escandallo</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+    </View>
+  );
+}
