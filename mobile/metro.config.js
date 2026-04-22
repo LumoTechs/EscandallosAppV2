@@ -102,7 +102,9 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   }
 };
 
-const cacheDir = path.join(__dirname, 'caches');
+const os = require('node:os');
+const cacheDir = path.join(os.tmpdir(), 'gastrocost-metro-cache');
+fs.mkdirSync(cacheDir, { recursive: true });
 
 config.cacheStores = () => [
   new FileStore({
@@ -138,9 +140,13 @@ const originalGetTransformOptions = config.transformer.getTransformOptions;
 config.transformer = {
   ...config.transformer,
   getTransformOptions: async (entryPoints, options) => {
-    if (options.dev === false) { 
-      fs.rmSync(cacheDir, { recursive: true, force: true });
-      fs.mkdirSync(cacheDir);
+    if (options.dev === false) {
+      try {
+        fs.rmSync(cacheDir, { recursive: true, force: true });
+      } catch (e) {
+        // no-op: en algunos entornos (Vercel) no podemos borrar
+      }
+      fs.mkdirSync(cacheDir, { recursive: true });
     }
     return await originalGetTransformOptions(entryPoints, options)
   },
