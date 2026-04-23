@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { name, sale_price, ingredients } = req.body || {};
+    const { name, sale_price, category, ingredients } = req.body || {};
 
     if (!name || !sale_price || !Array.isArray(ingredients) || ingredients.length === 0) {
       return res.status(400).json({ error: 'name, sale_price e ingredients son requeridos' });
@@ -20,6 +20,7 @@ export default async function handler(req, res) {
       .insert({
         name,
         sale_price: parseFloat(sale_price),
+        category: category || null,
         target_food_cost_percentage: 35,
       })
       .select()

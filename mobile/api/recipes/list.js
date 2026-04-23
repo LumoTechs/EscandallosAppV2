@@ -15,6 +15,7 @@ export default async function handler(req, res) {
         id,
         name,
         sale_price,
+        category,
         target_food_cost_percentage,
         created_at,
         recipe_ingredients (
@@ -47,6 +48,7 @@ export default async function handler(req, res) {
         id: r.id,
         name: r.name,
         sale_price: r.sale_price,
+        category: r.category || null,
         target_food_cost_percentage: r.target_food_cost_percentage,
         actual_food_cost_percentage: actualFoodCost.toFixed(2),
         total_cost: totalCost.toFixed(2),

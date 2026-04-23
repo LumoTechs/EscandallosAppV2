@@ -18,6 +18,7 @@ import {
   Search,
   AlertCircle,
   ArrowLeft,
+  ChevronRight,
 } from "lucide-react-native";
 import Svg, { Path, Circle } from "react-native-svg";
 
@@ -38,6 +39,27 @@ const T = {
   serif: "Georgia",
 };
 
+const CATEGORIES = [
+  { key: "entrantes",   label: "Entrantes",   color: "#4F7A3C", soft: "#ECF3E5" },
+  { key: "principales", label: "Principales", color: "#B2451C", soft: "#FBEAD9" },
+  { key: "segundos",    label: "Segundos",    color: "#D98324", soft: "#FDF2E2" },
+  { key: "postres",     label: "Postres",     color: "#7B3FA0", soft: "#F5EEFF" },
+  { key: "bebidas",     label: "Bebidas",     color: "#1A7A8A", soft: "#E0F7F9" },
+];
+
+const CATEGORY_ORDER = ["entrantes", "principales", "segundos", "postres", "bebidas", "otros"];
+
+function getCat(key) {
+  return (
+    CATEGORIES.find((c) => c.key === key) || {
+      key: "otros",
+      label: "Otros",
+      color: T.muted,
+      soft: T.bg,
+    }
+  );
+}
+
 function EmptyPeaceful() {
   return (
     <Svg width={140} height={100} viewBox="0 0 140 100">
@@ -51,6 +73,116 @@ function EmptyPeaceful() {
 
 const fmtEUR = (n) => `€${Number(n).toFixed(2)}`;
 
+function RecipeCard({ r }) {
+  const cost = parseFloat(r.total_cost || 0);
+  const sale = parseFloat(r.sale_price || 0);
+  const margin = sale - cost;
+  const foodCost = parseFloat(r.actual_food_cost_percentage || 0);
+  const target = parseFloat(r.target_food_cost_percentage || 35);
+  const isRisky = foodCost > target;
+  const cat = getCat(r.category);
+
+  return (
+    <View
+      style={{
+        backgroundColor: T.surface,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: T.line,
+        overflow: "hidden",
+        shadowColor: "#2B1D12",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+      }}
+    >
+      {/* Franja superior de color por categoría */}
+      <View style={{ height: 4, backgroundColor: cat.color }} />
+
+      <View style={{ padding: 18 }}>
+        {/* Badges */}
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <View
+            style={{
+              backgroundColor: cat.soft,
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              borderRadius: 20,
+            }}
+          >
+            <Text style={{ fontSize: 10, fontWeight: "700", color: cat.color, letterSpacing: 1.2, textTransform: "uppercase" }}>
+              {cat.label}
+            </Text>
+          </View>
+          {isRisky && (
+            <View
+              style={{
+                backgroundColor: T.primarySoft,
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 20,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <AlertCircle size={10} color={T.primary} />
+              <Text style={{ fontSize: 10, fontWeight: "700", color: T.primary }}>En riesgo</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Nombre y PVP */}
+        <Text style={{ fontSize: 20, fontFamily: T.serif, color: T.ink, letterSpacing: -0.4, marginBottom: 3 }}>
+          {r.name}
+        </Text>
+        <Text style={{ fontSize: 13, color: T.muted, marginBottom: 16 }}>
+          PVP {fmtEUR(sale)}
+        </Text>
+
+        {/* Stats */}
+        <View
+          style={{
+            flexDirection: "row",
+            borderTopWidth: 1,
+            borderTopColor: T.line,
+            paddingTop: 14,
+            gap: 0,
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 9, fontWeight: "700", color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 5 }}>
+              Coste
+            </Text>
+            <Text style={{ fontSize: 17, fontFamily: T.serif, color: T.inkSoft, letterSpacing: -0.2 }}>
+              {fmtEUR(cost)}
+            </Text>
+          </View>
+          <View style={{ width: 1, backgroundColor: T.line, marginHorizontal: 14, borderRadius: 1 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 9, fontWeight: "700", color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 5 }}>
+              Margen
+            </Text>
+            <Text style={{ fontSize: 17, fontFamily: T.serif, color: margin >= 0 ? T.ok : T.primary, letterSpacing: -0.2 }}>
+              {fmtEUR(margin)}
+            </Text>
+          </View>
+          <View style={{ width: 1, backgroundColor: T.line, marginHorizontal: 14, borderRadius: 1 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 9, fontWeight: "700", color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 5 }}>
+              Food cost
+            </Text>
+            <Text style={{ fontSize: 17, fontFamily: T.serif, color: isRisky ? T.primary : T.ink, letterSpacing: -0.2 }}>
+              {foodCost.toFixed(1)}%
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export default function Recipes() {
   const insets = useSafeAreaInsets();
   const [recipes, setRecipes] = useState([]);
@@ -60,6 +192,7 @@ export default function Recipes() {
 
   const [newName, setNewName] = useState("");
   const [newSalePrice, setNewSalePrice] = useState("");
+  const [newCategory, setNewCategory] = useState(null);
   const [newIngredients, setNewIngredients] = useState([]);
   const [ingSearch, setIngSearch] = useState("");
   const [saving, setSaving] = useState(false);
@@ -85,7 +218,18 @@ export default function Recipes() {
     }
   };
 
-  // --- Creación en vivo ---
+  const grouped = useMemo(() => {
+    const map = {};
+    for (const r of recipes) {
+      const key = r.category || "otros";
+      if (!map[key]) map[key] = [];
+      map[key].push(r);
+    }
+    return CATEGORY_ORDER
+      .map((key) => ({ key, cat: getCat(key), recipes: map[key] || [] }))
+      .filter((g) => g.recipes.length > 0);
+  }, [recipes]);
+
   const filteredForAdd = useMemo(() => {
     if (!ingSearch.trim()) return [];
     const q = ingSearch.toLowerCase().trim();
@@ -127,6 +271,7 @@ export default function Recipes() {
     setCreating(false);
     setNewName("");
     setNewSalePrice("");
+    setNewCategory(null);
     setNewIngredients([]);
     setIngSearch("");
   };
@@ -141,13 +286,10 @@ export default function Recipes() {
         body: JSON.stringify({
           name: newName,
           sale_price: parseFloat(newSalePrice),
+          category: newCategory,
           ingredients: newIngredients.map((i) => {
             const p = products.find((pr) => pr.id === i.product_id);
-            return {
-              product_id: i.product_id,
-              quantity: i.quantity,
-              unit: p?.unit || null,
-            };
+            return { product_id: i.product_id, quantity: i.quantity, unit: p?.unit || null };
           }),
         }),
       });
@@ -268,6 +410,43 @@ export default function Recipes() {
                 keyboardType="decimal-pad"
                 style={{ flex: 1, fontSize: 20, fontFamily: T.serif, color: T.ink, paddingVertical: 4 }}
               />
+            </View>
+          </View>
+
+          {/* Categoría */}
+          <View style={{ backgroundColor: T.surface, borderRadius: 16, borderWidth: 1, borderColor: T.line, padding: 20, marginBottom: 14 }}>
+            <Text style={{ fontSize: 10, fontWeight: "600", color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 14 }}>
+              Sección de la carta
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {CATEGORIES.map((cat) => {
+                const selected = newCategory === cat.key;
+                return (
+                  <TouchableOpacity
+                    key={cat.key}
+                    onPress={() => setNewCategory(selected ? null : cat.key)}
+                    activeOpacity={0.75}
+                    style={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      borderRadius: 20,
+                      borderWidth: 1.5,
+                      borderColor: selected ? cat.color : T.line,
+                      backgroundColor: selected ? cat.soft : T.bg,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "600",
+                        color: selected ? cat.color : T.inkSoft,
+                      }}
+                    >
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 
@@ -478,7 +657,7 @@ export default function Recipes() {
           Escandallos
         </Text>
         <Text style={{ fontSize: 30, fontFamily: T.serif, color: T.ink, letterSpacing: -0.6, marginTop: 6 }}>
-          Recetas
+          La carta
         </Text>
         <Text style={{ fontSize: 14, color: T.inkSoft, marginTop: 4 }}>
           Calcula margen y food cost en vivo
@@ -492,7 +671,7 @@ export default function Recipes() {
       ) : (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 120 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 120 }}
           showsVerticalScrollIndicator={false}
         >
           {recipes.length === 0 ? (
@@ -506,132 +685,43 @@ export default function Recipes() {
               </Text>
             </View>
           ) : (
-            <View style={{ gap: 12, marginBottom: 16 }}>
-              {recipes.map((r) => {
-                const cost = parseFloat(r.total_cost || 0);
-                const sale = parseFloat(r.sale_price || 0);
-                const margin = sale - cost;
-                const foodCost = parseFloat(r.actual_food_cost_percentage || 0);
-                const target = parseFloat(r.target_food_cost_percentage || 35);
-                const isRisky = foodCost > target;
-                return (
-                  <View
-                    key={r.id}
+            grouped.map((group) => (
+              <View key={group.key} style={{ marginBottom: 28 }}>
+                {/* Cabecera de sección */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 14,
+                    gap: 10,
+                  }}
+                >
+                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: group.cat.color }} />
+                  <Text
                     style={{
-                      backgroundColor: T.surface,
-                      borderWidth: 1,
-                      borderColor: T.line,
-                      borderRadius: 16,
-                      padding: 20,
+                      fontSize: 11,
+                      fontWeight: "700",
+                      color: group.cat.color,
+                      letterSpacing: 1.8,
+                      textTransform: "uppercase",
                     }}
                   >
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        alignItems: "flex-start",
-                        marginBottom: 14,
-                      }}
-                    >
-                      <View style={{ flex: 1, paddingRight: 8 }}>
-                        <Text style={{ fontSize: 18, fontFamily: T.serif, color: T.ink, letterSpacing: -0.3 }}>
-                          {r.name}
-                        </Text>
-                        <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 3 }}>
-                          PVP {fmtEUR(sale)}
-                        </Text>
-                      </View>
-                      {isRisky && (
-                        <View
-                          style={{
-                            backgroundColor: T.primarySoft,
-                            paddingHorizontal: 8,
-                            paddingVertical: 3,
-                            borderRadius: 6,
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          <AlertCircle size={10} color={T.primary} />
-                          <Text style={{ fontSize: 10, fontWeight: "600", color: T.primary }}>En riesgo</Text>
-                        </View>
-                      )}
-                    </View>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        gap: 12,
-                        paddingVertical: 14,
-                        borderTopWidth: 1,
-                        borderBottomWidth: 1,
-                        borderColor: T.line,
-                      }}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text
-                          style={{
-                            fontSize: 10,
-                            color: T.muted,
-                            letterSpacing: 1.2,
-                            textTransform: "uppercase",
-                            fontWeight: "600",
-                          }}
-                        >
-                          Margen
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 24,
-                            fontFamily: T.serif,
-                            color: margin >= 0 ? T.ok : T.primary,
-                            marginTop: 4,
-                            letterSpacing: -0.3,
-                          }}
-                        >
-                          {fmtEUR(margin)}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text
-                          style={{
-                            fontSize: 10,
-                            color: T.muted,
-                            letterSpacing: 1.2,
-                            textTransform: "uppercase",
-                            fontWeight: "600",
-                          }}
-                        >
-                          Food cost
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 24,
-                            fontFamily: T.serif,
-                            color: isRisky ? T.primary : T.ink,
-                            marginTop: 4,
-                            letterSpacing: -0.3,
-                          }}
-                        >
-                          {foodCost.toFixed(1)}%
-                        </Text>
-                      </View>
-                    </View>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginTop: 12,
-                      }}
-                    >
-                      <Text style={{ fontSize: 12, color: T.inkSoft }}>Coste total</Text>
-                      <Text style={{ fontSize: 14, fontWeight: "600", color: T.ink }}>{fmtEUR(cost)}</Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
+                    {group.cat.label}
+                  </Text>
+                  <View style={{ flex: 1, height: 1, backgroundColor: T.line }} />
+                  <Text style={{ fontSize: 11, color: T.muted }}>
+                    {group.recipes.length} {group.recipes.length === 1 ? "plato" : "platos"}
+                  </Text>
+                </View>
+
+                {/* Tarjetas */}
+                <View style={{ gap: 12 }}>
+                  {group.recipes.map((r) => (
+                    <RecipeCard key={r.id} r={r} />
+                  ))}
+                </View>
+              </View>
+            ))
           )}
 
           <TouchableOpacity
