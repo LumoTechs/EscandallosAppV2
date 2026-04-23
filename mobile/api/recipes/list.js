@@ -9,22 +9,20 @@ export default async function handler(req, res) {
   try {
     const supabase = getAdminClient();
 
-    const { data: recipes, error } = await supabase
+    // Intentamos con category; si el cache de PostgREST no la conoce aún, reintentamos sin ella
+    let recipes, error;
+
+    ({ data: recipes, error } = await supabase
       .from('recipes')
-      .select(`
-        id,
-        name,
-        sale_price,
-        category,
-        target_food_cost_percentage,
-        created_at,
-        recipe_ingredients (
-          quantity,
-          unit,
-          products ( id, current_price )
-        )
-      `)
-      .order('created_at', { ascending: false });
+      .select(`id, name, sale_price, category, target_food_cost_percentage, created_at, recipe_ingredients ( quantity, unit, products ( id, current_price ) )`)
+      .order('created_at', { ascending: false }));
+
+    if (error && error.message.includes('schema cache')) {
+      ({ data: recipes, error } = await supabase
+        .from('recipes')
+        .select(`id, name, sale_price, target_food_cost_percentage, created_at, recipe_ingredients ( quantity, unit, products ( id, current_price ) )`)
+        .order('created_at', { ascending: false }));
+    }
 
     if (error) {
       console.error('Error fetching recipes:', error);

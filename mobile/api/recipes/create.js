@@ -15,16 +15,22 @@ export default async function handler(req, res) {
 
     const supabase = getAdminClient();
 
-    const { data: recipe, error: recErr } = await supabase
+    // Intentamos con category; si el cache de PostgREST no la conoce aún, reintentamos sin ella
+    let recipe, recErr;
+
+    ({ data: recipe, error: recErr } = await supabase
       .from('recipes')
-      .insert({
-        name,
-        sale_price: parseFloat(sale_price),
-        category: category || null,
-        target_food_cost_percentage: 35,
-      })
+      .insert({ name, sale_price: parseFloat(sale_price), category: category || null, target_food_cost_percentage: 35 })
       .select()
-      .single();
+      .single());
+
+    if (recErr && recErr.message.includes('schema cache')) {
+      ({ data: recipe, error: recErr } = await supabase
+        .from('recipes')
+        .insert({ name, sale_price: parseFloat(sale_price), target_food_cost_percentage: 35 })
+        .select()
+        .single());
+    }
 
     if (recErr) {
       console.error('Error creando receta:', recErr);
