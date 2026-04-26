@@ -5,8 +5,9 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
@@ -19,8 +20,67 @@ import Svg, {
   LinearGradient,
   Stop,
 } from "react-native-svg";
-import { ArrowUpRight, TrendingUp, ChefHat } from "lucide-react-native";
+import { ArrowUpRight, TrendingUp, ChefHat, Sparkles, Flame } from "lucide-react-native";
 import { T } from "../../theme";
+
+const RECIPE_CATEGORIES = [
+  { key: "entrantes",   color: "#4F7A3C", soft: "#ECF3E5", label: "Entrantes" },
+  { key: "principales", color: "#B2451C", soft: "#FBEAD9", label: "Principales" },
+  { key: "segundos",    color: "#D98324", soft: "#FDF2E2", label: "Segundos" },
+  { key: "postres",     color: "#7B3FA0", soft: "#F5EEFF", label: "Postres" },
+  { key: "bebidas",     color: "#1A7A8A", soft: "#E0F7F9", label: "Bebidas" },
+];
+function getRCat(key) {
+  return (
+    RECIPE_CATEGORIES.find((c) => c.key === key) || {
+      key: "otros",
+      color: T.muted,
+      soft: T.bg,
+      label: "Otros",
+    }
+  );
+}
+function getInitials(name) {
+  if (!name) return "?";
+  const words = name.trim().split(/\s+/);
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+function MiniDishArt({ cat, name }) {
+  const initials = getInitials(name);
+  const gradId = `mini-${cat.key}-${initials}`;
+  return (
+    <View style={{ width: "100%", aspectRatio: 1.3, position: "relative" }}>
+      <Svg width="100%" height="100%" viewBox="0 0 130 100" preserveAspectRatio="xMidYMid slice">
+        <Defs>
+          <LinearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor={cat.soft} stopOpacity="1" />
+            <Stop offset="1" stopColor={cat.color} stopOpacity="0.85" />
+          </LinearGradient>
+        </Defs>
+        <Rect width="130" height="100" fill={`url(#${gradId})`} />
+        <Circle cx="30" cy="20" r="32" fill="#fff" opacity="0.10" />
+        <Circle cx="65" cy="50" r="30" fill="#fff" opacity="0.22" />
+        <Circle cx="65" cy="50" r="30" stroke="#fff" strokeWidth="1.2" opacity="0.5" fill="none" />
+      </Svg>
+      <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, justifyContent: "center", alignItems: "center" }}>
+        <Text
+          style={{
+            fontSize: 28,
+            fontFamily: T.serif,
+            color: "#fff",
+            letterSpacing: -0.8,
+            textShadowColor: "rgba(0,0,0,0.18)",
+            textShadowOffset: { width: 0, height: 1 },
+            textShadowRadius: 2,
+          }}
+        >
+          {initials}
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 function Sparkline({ data, color = T.primary, width = 280, height = 50 }) {
   if (!data || data.length < 2) return null;
@@ -117,6 +177,8 @@ function EmptyPeaceful() {
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { width: winWidth } = useWindowDimensions();
+  const topCols = winWidth >= 1100 ? 4 : winWidth >= 760 ? 3 : 2;
   const [alerts, setAlerts] = useState([]);
   const [recipes, setRecipes] = useState([]);
   const [purchasesData, setPurchasesData] = useState([]);
@@ -167,6 +229,18 @@ export default function Dashboard() {
       : 0;
 
   const costTrend = [32, 34, 33, 36, 35, 38, 37, Math.round(avgFoodCost) || 39];
+
+  const topRecipes = useMemo(() => {
+    return recipes
+      .map((r) => {
+        const sale = parseFloat(r.sale_price || 0);
+        const cost = parseFloat(r.total_cost || 0);
+        return { ...r, _margin: sale - cost };
+      })
+      .filter((r) => parseFloat(r.sale_price || 0) > 0)
+      .sort((a, b) => b._margin - a._margin)
+      .slice(0, 4);
+  }, [recipes]);
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: insets.top }}>
@@ -353,6 +427,142 @@ export default function Dashboard() {
                 </View>
               )}
             </View>
+
+            {/* Top platos */}
+            {topRecipes.length > 0 && (
+              <View style={{ marginBottom: 16 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "flex-end",
+                    marginBottom: 12,
+                  }}
+                >
+                  <View>
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: "600",
+                        color: T.muted,
+                        letterSpacing: 1.5,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Top platos
+                    </Text>
+                    <Text style={{ fontSize: 18, fontFamily: T.serif, color: T.ink, letterSpacing: -0.3, marginTop: 2 }}>
+                      Por margen
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => router.push("/(tabs)/recipes")}>
+                    <Text style={{ fontSize: 12, color: T.primary, fontWeight: "600" }}>
+                      Ver todo →
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    marginHorizontal: -5,
+                  }}
+                >
+                  {topRecipes.map((r) => {
+                    const cat = getRCat(r.category);
+                    const sale = parseFloat(r.sale_price || 0);
+                    const cost = parseFloat(r.total_cost || 0);
+                    const margin = sale - cost;
+                    const fc = parseFloat(r.actual_food_cost_percentage || 0);
+                    const target = parseFloat(r.target_food_cost_percentage || 35);
+                    const isGold = sale > 0 && fc > 0 && fc <= target - 5;
+                    const isRisky = fc > target;
+                    return (
+                      <TouchableOpacity
+                        key={r.id}
+                        activeOpacity={0.85}
+                        onPress={() => router.push(`/recipes/${r.id}`)}
+                        style={{
+                          width: `${100 / topCols}%`,
+                          paddingHorizontal: 5,
+                          marginBottom: 10,
+                        }}
+                      >
+                        <View
+                          style={{
+                            backgroundColor: T.surface,
+                            borderRadius: 14,
+                            borderWidth: isGold ? 1.5 : 1,
+                            borderColor: isGold ? "#E8B931" : T.line,
+                            overflow: "hidden",
+                          }}
+                        >
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              paddingHorizontal: 10,
+                              paddingVertical: 6,
+                              backgroundColor: cat.soft,
+                              borderBottomWidth: 2,
+                              borderBottomColor: cat.color,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 8,
+                                fontWeight: "800",
+                                color: cat.color,
+                                letterSpacing: 1.1,
+                                textTransform: "uppercase",
+                              }}
+                              numberOfLines={1}
+                            >
+                              {cat.label}
+                            </Text>
+                            {isGold && <Sparkles size={9} color="#9C7A12" />}
+                            {isRisky && <Flame size={9} color={T.primary} />}
+                          </View>
+                          <View style={{ padding: 6, paddingBottom: 0 }}>
+                            <View style={{ borderRadius: 8, overflow: "hidden" }}>
+                              <MiniDishArt cat={cat} name={r.name} />
+                            </View>
+                          </View>
+                          <View style={{ paddingHorizontal: 10, paddingTop: 8, paddingBottom: 10 }}>
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                fontFamily: T.serif,
+                                color: T.ink,
+                                letterSpacing: -0.2,
+                                lineHeight: 15,
+                              }}
+                              numberOfLines={2}
+                            >
+                              {r.name}
+                            </Text>
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginTop: 6 }}>
+                              <View>
+                                <Text style={{ fontSize: 8, fontWeight: "800", color: T.muted, letterSpacing: 1, textTransform: "uppercase" }}>
+                                  Margen
+                                </Text>
+                                <Text style={{ fontSize: 13, fontFamily: T.serif, color: margin >= 0 ? T.ok : T.primary, marginTop: 1 }}>
+                                  €{margin.toFixed(2)}
+                                </Text>
+                              </View>
+                              <Text style={{ fontSize: 11, color: isRisky ? T.primary : T.inkSoft, fontWeight: "600" }}>
+                                {fc.toFixed(0)}%
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
 
             {/* Quick actions */}
             <Text

@@ -239,132 +239,133 @@ export default function Alerts() {
                       opacity: alert.is_read ? 0.75 : 1,
                     }}
                   >
-                    <View style={{ flexDirection: "row" }}>
-                      <View
-                        style={{
-                          width: 4,
-                          backgroundColor: colors.accent,
-                        }}
-                      />
-
-                      <View style={{ flex: 1, padding: 16 }}>
+                    {/* Banda tipo */}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        paddingHorizontal: 14,
+                        paddingVertical: 8,
+                        backgroundColor: colors.soft,
+                        borderBottomWidth: 2,
+                        borderBottomColor: colors.accent,
+                      }}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent }} />
+                        <Text
+                          style={{
+                            fontSize: 10,
+                            fontWeight: "800",
+                            color: colors.accent,
+                            letterSpacing: 1.4,
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {colors.label}
+                        </Text>
+                      </View>
+                      {!alert.is_read && (
                         <View
                           style={{
                             flexDirection: "row",
                             alignItems: "center",
-                            gap: 8,
-                            marginBottom: 10,
+                            gap: 5,
                           }}
                         >
                           <View
                             style={{
-                              backgroundColor: colors.soft,
-                              paddingHorizontal: 8,
-                              paddingVertical: 3,
-                              borderRadius: 999,
+                              width: 6,
+                              height: 6,
+                              borderRadius: 3,
+                              backgroundColor: colors.accent,
                             }}
-                          >
-                            <Text
-                              style={{
-                                fontSize: 10,
-                                fontWeight: "700",
-                                color: colors.accent,
-                                letterSpacing: 0.6,
-                                textTransform: "uppercase",
-                              }}
-                            >
-                              {colors.label}
-                            </Text>
-                          </View>
-                          {!alert.is_read && (
-                            <View
-                              style={{
-                                width: 6,
-                                height: 6,
-                                borderRadius: 3,
-                                backgroundColor: T.accent,
-                              }}
-                            />
-                          )}
+                          />
+                          <Text style={{ fontSize: 10, fontWeight: "700", color: colors.accent, letterSpacing: 0.8 }}>
+                            NUEVA
+                          </Text>
                         </View>
+                      )}
+                    </View>
 
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            color: T.ink,
-                            lineHeight: 20,
-                            fontWeight: alert.is_read ? "400" : "500",
-                          }}
-                        >
-                          {alert.message}
+                    <View style={{ padding: 16 }}>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          color: T.ink,
+                          lineHeight: 20,
+                          fontWeight: alert.is_read ? "400" : "500",
+                        }}
+                      >
+                        {alert.message}
+                      </Text>
+
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                          gap: 10,
+                          marginTop: 10,
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, color: T.muted }}>
+                          {new Date(alert.created_at).toLocaleDateString("es-ES", {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </Text>
 
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            flexWrap: "wrap",
-                            alignItems: "center",
-                            gap: 10,
-                            marginTop: 10,
-                          }}
-                        >
-                          <Text style={{ fontSize: 11, color: T.muted }}>
-                            {new Date(alert.created_at).toLocaleDateString("es-ES", {
-                              month: "short",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </Text>
-
-                          {alert.product_name && (
-                            <>
-                              <View
-                                style={{
-                                  width: 3,
-                                  height: 3,
-                                  borderRadius: 1.5,
-                                  backgroundColor: T.muted,
-                                }}
-                              />
-                              <Text
-                                style={{
-                                  fontSize: 11,
-                                  color: T.inkSoft,
-                                  fontWeight: "500",
-                                }}
-                              >
-                                {alert.product_name}
-                              </Text>
-                            </>
-                          )}
-                        </View>
-
-                        {!alert.is_read && (
-                          <TouchableOpacity
-                            activeOpacity={0.7}
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              gap: 6,
-                              marginTop: 12,
-                              alignSelf: "flex-start",
-                            }}
-                            onPress={() => markAsRead(alert.id)}
-                          >
-                            <Check color={T.primary} size={14} strokeWidth={2.2} />
+                        {alert.product_name && (
+                          <>
+                            <View
+                              style={{
+                                width: 3,
+                                height: 3,
+                                borderRadius: 1.5,
+                                backgroundColor: T.muted,
+                              }}
+                            />
                             <Text
                               style={{
-                                fontSize: 12,
-                                fontWeight: "600",
-                                color: T.primary,
+                                fontSize: 11,
+                                color: T.inkSoft,
+                                fontWeight: "500",
                               }}
                             >
-                              Marcar como leída
+                              {alert.product_name}
                             </Text>
-                          </TouchableOpacity>
+                          </>
                         )}
                       </View>
+
+                      {!alert.is_read && (
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                            marginTop: 12,
+                            alignSelf: "flex-start",
+                          }}
+                          onPress={() => markAsRead(alert.id)}
+                        >
+                          <Check color={T.primary} size={14} strokeWidth={2.2} />
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              fontWeight: "600",
+                              color: T.primary,
+                            }}
+                          >
+                            Marcar como leída
+                          </Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </View>
                 );

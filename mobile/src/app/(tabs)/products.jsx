@@ -18,8 +18,59 @@ import {
   TrendingUp,
   TrendingDown,
 } from "lucide-react-native";
-import Svg, { Path, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
+import { useRouter } from "expo-router";
+import Svg, { Path, Circle, Defs, LinearGradient, Stop, Rect } from "react-native-svg";
 import { T } from "../../theme";
+
+// Paleta para asignar color por proveedor (hash → índice)
+const SUPPLIER_PALETTE = [
+  { color: "#4F7A3C", soft: "#ECF3E5" }, // verde
+  { color: "#B2451C", soft: "#FBEAD9" }, // rojo
+  { color: "#D98324", soft: "#FDF2E2" }, // naranja
+  { color: "#7B3FA0", soft: "#F5EEFF" }, // púrpura
+  { color: "#1A7A8A", soft: "#E0F7F9" }, // azul
+  { color: "#5B6B8A", soft: "#EEF1F7" }, // gris-azul
+];
+
+function supplierColor(name) {
+  if (!name || name === "Sin proveedor") return { color: T.muted, soft: T.bg };
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  return SUPPLIER_PALETTE[Math.abs(hash) % SUPPLIER_PALETTE.length];
+}
+
+function ProductThumb({ unit, palette, size = 44 }) {
+  const label = (unit || "ud").slice(0, 2).toUpperCase();
+  return (
+    <View style={{ width: size, height: size, borderRadius: 10, overflow: "hidden" }}>
+      <Svg width="100%" height="100%" viewBox="0 0 44 44">
+        <Defs>
+          <LinearGradient id={`pt-${label}`} x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor={palette.soft} stopOpacity="1" />
+            <Stop offset="1" stopColor={palette.color} stopOpacity="0.85" />
+          </LinearGradient>
+        </Defs>
+        <Rect width="44" height="44" fill={`url(#pt-${label})`} />
+        <Circle cx="32" cy="10" r="14" fill="#fff" opacity="0.18" />
+      </Svg>
+      <View
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <Text style={{ fontSize: 13, fontWeight: "800", color: "#fff", letterSpacing: -0.3 }}>
+          {label}
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 function MiniSpark({ data, color = T.primary, width = 50, height = 22 }) {
   if (!data || data.length < 2) return null;
@@ -54,6 +105,7 @@ function EmptyBasket() {
 
 export default function Products() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -174,6 +226,7 @@ export default function Products() {
                 const isOpen = expanded === g.supplier;
                 const items = g.products || [];
                 const invoices = g.invoices || [];
+                const palette = supplierColor(g.supplier);
                 return (
                   <View
                     key={g.supplier}
@@ -186,36 +239,75 @@ export default function Products() {
                     }}
                   >
                     <TouchableOpacity
-                      activeOpacity={0.8}
+                      activeOpacity={0.85}
                       onPress={() => setExpanded(isOpen ? null : g.supplier)}
-                      style={{
-                        padding: 18,
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
                     >
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 16, fontFamily: T.serif, color: T.ink, letterSpacing: -0.2 }}>
-                          {g.supplier}
-                        </Text>
-                        <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 3 }}>
-                          {items.length} producto{items.length !== 1 ? "s" : ""}
-                          {invoices.length > 0 && ` · ${invoices.length} factura${invoices.length !== 1 ? "s" : ""}`}
-                        </Text>
-                      </View>
+                      {/* Banda tipo */}
                       <View
                         style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: 14,
-                          backgroundColor: isOpen ? T.primarySoft : T.bg,
-                          justifyContent: "center",
+                          flexDirection: "row",
                           alignItems: "center",
-                          transform: [{ rotate: isOpen ? "180deg" : "0deg" }],
+                          justifyContent: "space-between",
+                          paddingHorizontal: 14,
+                          paddingVertical: 8,
+                          backgroundColor: palette.soft,
+                          borderBottomWidth: 2,
+                          borderBottomColor: palette.color,
                         }}
                       >
-                        <ChevronDown color={isOpen ? T.primary : T.inkSoft} size={16} strokeWidth={2} />
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: palette.color }} />
+                          <Text
+                            style={{
+                              fontSize: 10,
+                              fontWeight: "800",
+                              color: palette.color,
+                              letterSpacing: 1.4,
+                              textTransform: "uppercase",
+                            }}
+                            numberOfLines={1}
+                          >
+                            Proveedor
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize: 11, color: palette.color, fontWeight: "700" }}>
+                          {items.length} {items.length === 1 ? "ítem" : "ítems"}
+                        </Text>
+                      </View>
+                      {/* Contenido del header */}
+                      <View
+                        style={{
+                          padding: 16,
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 17, fontFamily: T.serif, color: T.ink, letterSpacing: -0.3 }}>
+                            {g.supplier}
+                          </Text>
+                          <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 3 }}>
+                            {invoices.length > 0
+                              ? `${invoices.length} factura${invoices.length !== 1 ? "s" : ""} escaneada${invoices.length !== 1 ? "s" : ""}`
+                              : "Sin facturas registradas"}
+                          </Text>
+                        </View>
+                        <View
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 16,
+                            backgroundColor: isOpen ? palette.soft : T.bg,
+                            borderWidth: 1,
+                            borderColor: isOpen ? palette.color : T.line,
+                            justifyContent: "center",
+                            alignItems: "center",
+                            transform: [{ rotate: isOpen ? "180deg" : "0deg" }],
+                          }}
+                        >
+                          <ChevronDown color={isOpen ? palette.color : T.inkSoft} size={16} strokeWidth={2} />
+                        </View>
                       </View>
                     </TouchableOpacity>
 
@@ -277,18 +369,21 @@ export default function Products() {
 
                         <View style={{ paddingVertical: 4 }}>
                           {items.map((p, idx) => (
-                            <View
+                            <TouchableOpacity
                               key={p.id}
+                              activeOpacity={0.7}
+                              onPress={() => router.push(`/products/${p.id}`)}
                               style={{
                                 paddingHorizontal: 18,
                                 paddingVertical: 12,
                                 flexDirection: "row",
-                                justifyContent: "space-between",
                                 alignItems: "center",
+                                gap: 12,
                                 borderTopWidth: idx > 0 ? 1 : 0,
                                 borderTopColor: T.line,
                               }}
                             >
+                              <ProductThumb unit={p.unit} palette={palette} />
                               <View style={{ flex: 1, paddingRight: 8 }}>
                                 <Text style={{ fontSize: 14, color: T.ink, fontWeight: "500" }}>
                                   {p.name}
@@ -301,14 +396,14 @@ export default function Products() {
                                 </Text>
                               </View>
                               <View style={{ alignItems: "flex-end" }}>
-                                <Text style={{ fontSize: 14, fontWeight: "600", color: T.ink }}>
+                                <Text style={{ fontSize: 14, fontWeight: "700", color: T.ink, fontFamily: T.serif, letterSpacing: -0.2 }}>
                                   €{Number(p.current_price || 0).toFixed(2)}
                                 </Text>
-                                <Text style={{ fontSize: 10, color: T.muted }}>
+                                <Text style={{ fontSize: 10, color: T.muted, marginTop: 2 }}>
                                   por {p.unit || "ud"}
                                 </Text>
                               </View>
-                            </View>
+                            </TouchableOpacity>
                           ))}
                         </View>
                       </View>
