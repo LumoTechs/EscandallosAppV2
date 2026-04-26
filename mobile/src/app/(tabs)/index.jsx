@@ -20,24 +20,7 @@ import Svg, {
   Stop,
 } from "react-native-svg";
 import { ArrowUpRight, TrendingUp, ChefHat } from "lucide-react-native";
-
-const T = {
-  bg: "#FFFDF9",
-  surface: "#FFFFFF",
-  line: "#EFE8DD",
-  lineStrong: "#E2D8C7",
-  ink: "#2B1D12",
-  inkSoft: "#6B5B4A",
-  muted: "#9A8D7A",
-  primary: "#B2451C",
-  primarySoft: "#FBEAD9",
-  accent: "#D98324",
-  accentSoft: "#FDF2E2",
-  ok: "#4F7A3C",
-  okSoft: "#ECF3E5",
-  danger: "#B2451C",
-  serif: "Georgia",
-};
+import { T } from "../../theme";
 
 function Sparkline({ data, color = T.primary, width = 280, height = 50 }) {
   if (!data || data.length < 2) return null;

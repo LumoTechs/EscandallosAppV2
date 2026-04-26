@@ -1,14 +1,7 @@
 import { Tabs } from "expo-router";
 import { Home, Camera, Package, BookOpen, Bell } from "lucide-react-native";
 import { Platform, View } from "react-native";
-
-const T = {
-  bg: "#FFFDF9",
-  line: "#EFE8DD",
-  ink: "#2B1D12",
-  primary: "#B2451C",
-  muted: "#9A8D7A",
-};
+import { T } from "../../theme";
 
 export default function TabsLayout() {
   return (

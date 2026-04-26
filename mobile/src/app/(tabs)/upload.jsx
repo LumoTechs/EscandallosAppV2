@@ -12,23 +12,7 @@ import { StatusBar } from "expo-status-bar";
 import * as ImagePicker from "expo-image-picker";
 import { Camera, FileText, Check, AlertCircle } from "lucide-react-native";
 import Svg, { Path, Rect, Circle, Line } from "react-native-svg";
-
-const T = {
-  bg: "#FFFDF9",
-  surface: "#FFFFFF",
-  line: "#EFE8DD",
-  lineStrong: "#E2D8C7",
-  ink: "#2B1D12",
-  inkSoft: "#6B5B4A",
-  muted: "#9A8D7A",
-  primary: "#B2451C",
-  primarySoft: "#FBEAD9",
-  accent: "#D98324",
-  accentSoft: "#FDF2E2",
-  ok: "#4F7A3C",
-  okSoft: "#ECF3E5",
-  serif: "Georgia",
-};
+import { T } from "../../theme";
 
 function InvoiceIllustration() {
   return (
