@@ -9,37 +9,16 @@ export default async function handler(req, res) {
   try {
     const supabase = getAdminClient();
 
-    // Primero intentamos con category; si PostgREST no la tiene en cache, reintentamos sin ella
-    let recipes, error;
-
-    ({ data: recipes, error } = await supabase
-      .from('recipes')
-      .select(`id, name, sale_price, category, target_food_cost_percentage, created_at, recipe_ingredients ( quantity, unit, products ( id, current_price ) )`)
-      .order('created_at', { ascending: false }));
-
-    if (error) {
-      ({ data: recipes, error } = await supabase
-        .from('recipes')
-        .select(`id, name, sale_price, target_food_cost_percentage, created_at, recipe_ingredients ( quantity, unit, products ( id, current_price ) )`)
-        .order('created_at', { ascending: false }));
-    }
+    const { data: raw, error } = await supabase.rpc('list_recipes_full');
 
     if (error) {
       console.error('Error fetching recipes:', error);
       return res.status(500).json({ error: error.message });
     }
 
-    // Calculamos food cost real para cada receta
-    const enriched = (recipes || []).map((r) => {
-      let totalCost = 0;
-
-      for (const ing of r.recipe_ingredients || []) {
-        const price = parseFloat(ing.products?.current_price || 0);
-        const qty = parseFloat(ing.quantity || 0);
-        totalCost += price * qty;
-      }
-
+    const enriched = (raw || []).map((r) => {
       const salePrice = parseFloat(r.sale_price || 0);
+      const totalCost = parseFloat(r.total_cost || 0);
       const actualFoodCost = salePrice > 0 ? (totalCost / salePrice) * 100 : 0;
 
       return {
