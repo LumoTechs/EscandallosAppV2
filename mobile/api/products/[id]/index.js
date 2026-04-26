@@ -6,6 +6,8 @@
 import { getAdminClient } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
 
+const ALLOWED_UNITS = new Set(['kg', 'L', 'ud']);
+
 async function handler(req, res) {
   const { id } = req.query;
 
@@ -99,7 +101,11 @@ async function handlePatch(supabase, id, body, res) {
       allowed.current_price = n;
     }
     if (typeof body.unit === 'string') {
-      allowed.unit = body.unit.trim() || null;
+      const u = body.unit.trim();
+      if (u && !ALLOWED_UNITS.has(u)) {
+        return res.status(400).json({ error: `unit debe ser uno de: ${[...ALLOWED_UNITS].join(', ')}` });
+      }
+      allowed.unit = u || null;
     }
 
     if (Object.keys(allowed).length === 0) {

@@ -211,15 +211,22 @@ async function handler(req, res) {
       return res.status(500).json({ error: invErr.message });
     }
 
-    // 2. Guardar items de la factura (con los nuevos campos normalizados)
+    // 2. Guardar items de la factura (con los nuevos campos normalizados).
+    // Sanitizamos los strings devueltos por el modelo para evitar que un PDF
+    // adversario o un OCR raro inyecte cadenas absurdamente largas.
+    const cleanStr = (v, max) => {
+      if (typeof v !== 'string') return null;
+      const t = v.trim();
+      return t ? t.slice(0, max) : null;
+    };
     const itemsToInsert = (extracted.items || []).map((it) => ({
       invoice_id: invoice.id,
-      product_name: it.product_name,
+      product_name: cleanStr(it.product_name, 200),
       quantity: it.quantity,
-      unit: it.unit,
+      unit: cleanStr(it.unit, 20),
       unit_price: it.unit_price,
       total_price: it.total_price,
-      pack_info: it.pack_info || null,
+      pack_info: cleanStr(it.pack_info, 100),
       cost_per_unit_normalized: it.cost_per_unit_normalized || it.unit_price,
     }));
 
@@ -241,9 +248,10 @@ async function handler(req, res) {
     const generatedAlerts = [];
 
     for (const item of extracted.items || []) {
-      if (!item.product_name || item.cost_per_unit_normalized == null) continue;
+      const productName = cleanStr(item.product_name, 200);
+      if (!productName || item.cost_per_unit_normalized == null) continue;
 
-      const productName = item.product_name.trim();
+      const cleanUnit = cleanStr(item.unit, 20);
       const productSupplier = extracted.supplier || null;
       const normalized = productName.toLowerCase();
       // Usamos el coste normalizado (€/unidad base) para comparar precios de forma justa
@@ -266,7 +274,7 @@ async function handler(req, res) {
         .upsert(
           {
             name: productName,
-            unit: item.unit,
+            unit: cleanUnit,
             current_price: newPrice,
             supplier: productSupplier,
           },
@@ -298,7 +306,7 @@ async function handler(req, res) {
           if (Math.abs(change) >= 10) {
             const severity = Math.abs(change) >= 20 ? 'high' : 'medium';
             const direction = change > 0 ? 'subido' : 'bajado';
-            const message = `${productName} ha ${direction} un ${Math.abs(change).toFixed(1)}% (de €${oldPrice.toFixed(2)} a €${newPrice.toFixed(2)}/${item.unit})`;
+            const message = `${productName} ha ${direction} un ${Math.abs(change).toFixed(1)}% (de €${oldPrice.toFixed(2)} a €${newPrice.toFixed(2)}/${cleanUnit || ''})`;
 
             const { data: alert } = await supabase
               .from('alerts')
