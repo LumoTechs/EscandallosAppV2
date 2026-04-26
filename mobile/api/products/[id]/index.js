@@ -169,11 +169,15 @@ async function handleDelete(supabase, id, res) {
       });
     }
 
-    // Borrar histórico de precios primero (por si no hay ON DELETE CASCADE)
-    await supabase.from('product_prices').delete().eq('product_id', id);
-
     const { error } = await supabase.from('products').delete().eq('id', id);
     if (error) {
+      // FK ON DELETE RESTRICT en recipe_ingredients: si una receta lo añadió
+      // entre el check y el delete, Postgres rechaza con código 23503.
+      if (error.code === '23503') {
+        return res.status(409).json({
+          error: 'Este producto está en uso por una receta. Elimínalo primero de las recetas.',
+        });
+      }
       console.error('Error deleting product:', error);
       return res.status(500).json({ error: error.message });
     }

@@ -16,14 +16,18 @@ async function handler(req, res) {
 
     const supabase = getAdminClient();
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('alerts')
       .update({ read: true })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id');
 
     if (error) {
       console.error('Error marking alert as read:', error);
       return res.status(500).json({ error: error.message });
+    }
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'Alerta no encontrada' });
     }
 
     return res.status(200).json({ success: true });

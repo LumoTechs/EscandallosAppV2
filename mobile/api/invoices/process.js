@@ -280,10 +280,16 @@ async function handler(req, res) {
         continue;
       }
 
-      await supabase.from('product_prices').insert({
-        product_id: upserted.id,
-        price: newPrice,
-      });
+      // Solo loguear histórico cuando hay cambio real: producto nuevo o precio distinto.
+      const prevPrice = prev ? parseFloat(prev.current_price || 0) : null;
+      const priceChanged = prevPrice === null || prevPrice !== newPrice;
+      if (priceChanged) {
+        const { error: priceErr } = await supabase.from('product_prices').insert({
+          product_id: upserted.id,
+          price: newPrice,
+        });
+        if (priceErr) console.error('Error logging price history:', priceErr);
+      }
 
       if (prev) {
         const oldPrice = parseFloat(prev.current_price || 0);
