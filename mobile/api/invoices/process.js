@@ -65,9 +65,35 @@ export const config = {
   },
 };
 
-// Modelo configurable por env var. Default: Opus 4.5 (más preciso que Sonnet para OCR complejo).
-// Puedes probar 'claude-opus-4-7' para máxima calidad o volver a 'claude-sonnet-4-5' si hay límite de coste.
-const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-5';
+// Modelo configurable por env var. Default: Opus 4.7 (máxima calidad y vision de alta
+// resolución automática, ideal para facturas escaneadas). Alternativas:
+// - 'claude-sonnet-4-6': suele bastar para facturas limpias y es notablemente más barato.
+// - 'claude-opus-4-6': si quieres comparar comportamiento con la generación previa.
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-7';
+
+// Extrae el primer objeto JSON balanceado del texto, ignorando preámbulos del modelo
+// y texto posterior. Tolera comillas escapadas y llaves dentro de strings.
+function extractFirstJsonObject(text) {
+  const stripped = text.replace(/```json\s*|\s*```/g, '');
+  const start = stripped.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < stripped.length; i++) {
+    const c = stripped[i];
+    if (escape) { escape = false; continue; }
+    if (c === '\\') { escape = true; continue; }
+    if (c === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (c === '{') depth++;
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) return stripped.slice(start, i + 1);
+    }
+  }
+  return null;
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -96,34 +122,45 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'ANTHROPIC_API_KEY no configurada' });
     }
 
-    const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: ANTHROPIC_MODEL,
-        max_tokens: 4000,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: sourceType,
-                source: {
-                  type: 'base64',
-                  media_type: mediaType,
-                  data: base64Data,
+    let anthropicResponse;
+    try {
+      anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: ANTHROPIC_MODEL,
+          max_tokens: 8000,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: sourceType,
+                  source: {
+                    type: 'base64',
+                    media_type: mediaType,
+                    data: base64Data,
+                  },
                 },
-              },
-              { type: 'text', text: EXTRACTION_PROMPT },
-            ],
-          },
-        ],
-      }),
-    });
+                { type: 'text', text: EXTRACTION_PROMPT },
+              ],
+            },
+          ],
+        }),
+        signal: AbortSignal.timeout(45000),
+      });
+    } catch (fetchErr) {
+      if (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError') {
+        return res.status(504).json({
+          error: 'Anthropic tardó más de 45s en responder. Reintenta o prueba con menos páginas.',
+        });
+      }
+      throw fetchErr;
+    }
 
     if (!anthropicResponse.ok) {
       const errText = await anthropicResponse.text();
@@ -141,10 +178,14 @@ export default async function handler(req, res) {
       throw new Error('Respuesta inesperada del modelo');
     }
 
+    const jsonStr = extractFirstJsonObject(textBlock.text);
+    if (!jsonStr) {
+      console.error('No se encontró JSON en respuesta del modelo:', textBlock.text);
+      return res.status(500).json({ error: 'La IA no devolvió un JSON válido' });
+    }
     let extracted;
     try {
-      const cleaned = textBlock.text.replace(/```json\s*|\s*```/g, '').trim();
-      extracted = JSON.parse(cleaned);
+      extracted = JSON.parse(jsonStr);
     } catch (e) {
       console.error('JSON inválido del modelo:', textBlock.text);
       return res.status(500).json({ error: 'La IA no devolvió un JSON válido' });
@@ -201,45 +242,61 @@ export default async function handler(req, res) {
     for (const item of extracted.items || []) {
       if (!item.product_name || item.cost_per_unit_normalized == null) continue;
 
-      const { data: existing } = await supabase
-        .from('products')
-        .select('id, current_price, supplier')
-        .ilike('name', item.product_name)
-        .maybeSingle();
-
+      const productName = item.product_name.trim();
+      const productSupplier = extracted.supplier || null;
+      const normalized = productName.toLowerCase();
       // Usamos el coste normalizado (€/unidad base) para comparar precios de forma justa
       const newPrice = parseFloat(item.cost_per_unit_normalized);
 
-      if (existing) {
-        const oldPrice = parseFloat(existing.current_price || 0);
+      // Lookup previo del precio actual para la alerta. La carrera entre dos
+      // facturas concurrentes del mismo producto puede generar alertas redundantes,
+      // pero ya no produce filas duplicadas en `products` (UNIQUE en name_normalized+supplier).
+      let prevQuery = supabase
+        .from('products')
+        .select('id, current_price')
+        .eq('name_normalized', normalized);
+      prevQuery = productSupplier === null
+        ? prevQuery.is('supplier', null)
+        : prevQuery.eq('supplier', productSupplier);
+      const { data: prev } = await prevQuery.maybeSingle();
 
-        // Actualizar producto, incluyendo supplier si no lo tenía
-        const updateData = { current_price: newPrice };
-        if (!existing.supplier && extracted.supplier) {
-          updateData.supplier = extracted.supplier;
-        }
+      const { data: upserted, error: upsertErr } = await supabase
+        .from('products')
+        .upsert(
+          {
+            name: productName,
+            unit: item.unit,
+            current_price: newPrice,
+            supplier: productSupplier,
+          },
+          { onConflict: 'name_normalized,supplier' }
+        )
+        .select('id')
+        .single();
 
-        await supabase
-          .from('products')
-          .update(updateData)
-          .eq('id', existing.id);
+      if (upsertErr || !upserted) {
+        console.error('Error upserting product:', upsertErr);
+        continue;
+      }
 
-        await supabase.from('product_prices').insert({
-          product_id: existing.id,
-          price: newPrice,
-        });
+      await supabase.from('product_prices').insert({
+        product_id: upserted.id,
+        price: newPrice,
+      });
 
+      if (prev) {
+        const oldPrice = parseFloat(prev.current_price || 0);
         if (oldPrice > 0) {
           const change = ((newPrice - oldPrice) / oldPrice) * 100;
           if (Math.abs(change) >= 10) {
             const severity = Math.abs(change) >= 20 ? 'high' : 'medium';
             const direction = change > 0 ? 'subido' : 'bajado';
-            const message = `${item.product_name} ha ${direction} un ${Math.abs(change).toFixed(1)}% (de €${oldPrice.toFixed(2)} a €${newPrice.toFixed(2)}/${item.unit})`;
+            const message = `${productName} ha ${direction} un ${Math.abs(change).toFixed(1)}% (de €${oldPrice.toFixed(2)} a €${newPrice.toFixed(2)}/${item.unit})`;
 
             const { data: alert } = await supabase
               .from('alerts')
               .insert({
-                product_id: existing.id,
+                product_id: upserted.id,
                 message,
                 severity,
                 read: false,
@@ -249,25 +306,6 @@ export default async function handler(req, res) {
 
             if (alert) generatedAlerts.push(alert);
           }
-        }
-      } else {
-        // Producto nuevo → asociar al proveedor de esta factura
-        const { data: newProduct } = await supabase
-          .from('products')
-          .insert({
-            name: item.product_name,
-            unit: item.unit,
-            current_price: newPrice,
-            supplier: extracted.supplier,
-          })
-          .select()
-          .single();
-
-        if (newProduct) {
-          await supabase.from('product_prices').insert({
-            product_id: newProduct.id,
-            price: newPrice,
-          });
         }
       }
     }
