@@ -1,68 +1,48 @@
-import { router } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
-import { useCallback, useEffect, useMemo } from 'react';
-import { create } from 'zustand';
-import { Modal, View } from 'react-native';
-import { useAuthModal, useAuthStore, authKey } from './store';
+import { useEffect, useState, useCallback } from 'react';
+import { supabase } from '../supabase';
 
-
-/**
- * This hook provides authentication functionality.
- * It may be easier to use the `useAuthModal` or `useRequireAuth` hooks
- * instead as those will also handle showing authentication to the user
- * directly.
- */
-export const useAuth = () => {
-  const { isReady, auth, setAuth } = useAuthStore();
-  const { isOpen, close, open } = useAuthModal();
-
-  const initiate = useCallback(() => {
-    SecureStore.getItemAsync(authKey).then((auth) => {
-      useAuthStore.setState({
-        auth: auth ? JSON.parse(auth) : null,
-        isReady: true,
-      });
-    });
-  }, []);
-
-  useEffect(() => {}, []);
-
-  const signIn = useCallback(() => {
-    open({ mode: 'signin' });
-  }, [open]);
-  const signUp = useCallback(() => {
-    open({ mode: 'signup' });
-  }, [open]);
-
-  const signOut = useCallback(() => {
-    setAuth(null);
-    close();
-  }, [close]);
-
-  return {
-    isReady,
-    isAuthenticated: isReady ? !!auth : null,
-    signIn,
-    signOut,
-    signUp,
-    auth,
-    setAuth,
-    initiate,
-  };
-};
-
-/**
- * This hook will automatically open the authentication modal if the user is not authenticated.
- */
-export const useRequireAuth = (options) => {
-  const { isAuthenticated, isReady } = useAuth();
-  const { open } = useAuthModal();
+export function useSession() {
+  const [session, setSession] = useState(null);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated && isReady) {
-      open({ mode: options?.mode });
-    }
-  }, [isAuthenticated, open, options?.mode, isReady]);
-};
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setSession(data.session ?? null);
+      setIsReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s ?? null);
+    });
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
 
-export default useAuth;
+  const signIn = useCallback(async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    if (error) throw error;
+    return data.session;
+  }, []);
+
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+  }, []);
+
+  return {
+    session,
+    user: session?.user ?? null,
+    isReady,
+    isAuthenticated: isReady ? !!session : null,
+    signIn,
+    signOut,
+  };
+}
+
+export const useAuth = useSession;
+export default useSession;

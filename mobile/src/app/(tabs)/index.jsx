@@ -20,8 +20,9 @@ import Svg, {
   LinearGradient,
   Stop,
 } from "react-native-svg";
-import { ArrowUpRight, TrendingUp, ChefHat, Sparkles, Flame } from "lucide-react-native";
+import { ArrowUpRight, TrendingUp, ChefHat, Sparkles, Flame, LogOut } from "lucide-react-native";
 import { T } from "../../theme";
+import { useSession } from "../../utils/auth";
 
 const RECIPE_CATEGORIES = [
   { key: "entrantes",   color: "#4F7A3C", soft: "#ECF3E5", label: "Entrantes" },
@@ -177,6 +178,7 @@ function EmptyPeaceful() {
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { signOut } = useSession();
   const { width: winWidth } = useWindowDimensions();
   const topCols = winWidth >= 1100 ? 4 : winWidth >= 760 ? 3 : 2;
   const [alerts, setAlerts] = useState([]);
@@ -246,32 +248,51 @@ export default function Dashboard() {
     <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: insets.top }}>
       <StatusBar style="dark" />
 
-      <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 20 }}>
-        <Text
+      <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 20, flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: "600",
+              color: T.accent,
+              letterSpacing: 2,
+              textTransform: "uppercase",
+            }}
+          >
+            Panel de control
+          </Text>
+          <Text
+            style={{
+              fontSize: 34,
+              fontFamily: T.serif,
+              color: T.ink,
+              letterSpacing: -0.8,
+              marginTop: 6,
+            }}
+          >
+            GastroCost
+          </Text>
+          <Text style={{ fontSize: 14, color: T.inkSoft, marginTop: 4, lineHeight: 20 }}>
+            Control de costes y escandallos
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={signOut}
+          accessibilityLabel="Cerrar sesión"
           style={{
-            fontSize: 11,
-            fontWeight: "600",
-            color: T.accent,
-            letterSpacing: 2,
-            textTransform: "uppercase",
+            width: 38,
+            height: 38,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: T.line,
+            backgroundColor: T.surface,
+            alignItems: "center",
+            justifyContent: "center",
+            marginTop: 4,
           }}
         >
-          Panel de control
-        </Text>
-        <Text
-          style={{
-            fontSize: 34,
-            fontFamily: T.serif,
-            color: T.ink,
-            letterSpacing: -0.8,
-            marginTop: 6,
-          }}
-        >
-          GastroCost
-        </Text>
-        <Text style={{ fontSize: 14, color: T.inkSoft, marginTop: 4, lineHeight: 20 }}>
-          Control de costes y escandallos
-        </Text>
+          <LogOut size={16} color={T.inkSoft} />
+        </TouchableOpacity>
       </View>
 
       {loading ? (

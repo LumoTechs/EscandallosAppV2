@@ -1,5 +1,2 @@
-import { useAuth, useRequireAuth } from './useAuth';
-export { useUser } from './useUser';
-
-export { useAuth, useRequireAuth };
-export default useAuth;
+export { useSession, useAuth } from './useAuth';
+export { default } from './useAuth';
