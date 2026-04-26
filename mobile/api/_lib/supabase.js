@@ -4,7 +4,11 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+let cachedClient = null;
+
 export function getAdminClient() {
+  if (cachedClient) return cachedClient;
+
   const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -15,10 +19,11 @@ export function getAdminClient() {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY no configurada');
   }
 
-  return createClient(url, serviceKey, {
+  cachedClient = createClient(url, serviceKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
   });
+  return cachedClient;
 }
