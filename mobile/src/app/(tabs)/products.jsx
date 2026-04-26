@@ -22,6 +22,7 @@ import { useRouter } from "expo-router";
 import Svg, { Path, Circle, Defs, LinearGradient, Stop, Rect } from "react-native-svg";
 import { T } from "../../theme";
 import { apiFetch } from "../../utils/apiFetch";
+import { useSession } from "../../utils/auth";
 
 // Paleta para asignar color por proveedor (hash → índice)
 const SUPPLIER_PALETTE = [
@@ -107,14 +108,16 @@ function EmptyBasket() {
 export default function Products() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isReady, isAuthenticated } = useSession();
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState(null);
 
   useEffect(() => {
+    if (!isReady || !isAuthenticated) return;
     loadGroups();
-  }, [search]);
+  }, [search, isReady, isAuthenticated]);
 
   const loadGroups = async () => {
     try {

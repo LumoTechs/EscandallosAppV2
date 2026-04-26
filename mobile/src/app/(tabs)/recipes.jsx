@@ -27,6 +27,7 @@ import Svg, { Path, Circle, Defs, LinearGradient, Stop, Rect } from "react-nativ
 import { useRouter } from "expo-router";
 import { T } from "../../theme";
 import { apiFetch } from "../../utils/apiFetch";
+import { useSession } from "../../utils/auth";
 
 const CATEGORIES = [
   { key: "entrantes",   label: "Entrantes",   color: "#4F7A3C", soft: "#ECF3E5" },
@@ -321,6 +322,7 @@ function Stat({ label, value, color }) {
 export default function Recipes() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isReady, isAuthenticated } = useSession();
   const { width: winWidth } = useWindowDimensions();
   const numCols = winWidth >= 1100 ? 4 : winWidth >= 760 ? 3 : 2;
   const cardGap = 14;
@@ -337,8 +339,9 @@ export default function Recipes() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (!isReady || !isAuthenticated) return;
     loadData();
-  }, []);
+  }, [isReady, isAuthenticated]);
 
   const loadData = async () => {
     try {

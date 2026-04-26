@@ -179,7 +179,7 @@ function EmptyPeaceful() {
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { signOut } = useSession();
+  const { signOut, isReady, isAuthenticated } = useSession();
   const { width: winWidth } = useWindowDimensions();
   const topCols = winWidth >= 1100 ? 4 : winWidth >= 760 ? 3 : 2;
   const [alerts, setAlerts] = useState([]);
@@ -188,8 +188,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!isReady || !isAuthenticated) return;
     loadDashboardData();
-  }, []);
+  }, [isReady, isAuthenticated]);
 
   const loadDashboardData = async () => {
     try {

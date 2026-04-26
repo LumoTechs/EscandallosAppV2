@@ -12,6 +12,7 @@ import Svg, { Path, Circle, Line } from "react-native-svg";
 import { Check } from "lucide-react-native";
 import { T } from "../../theme";
 import { apiFetch } from "../../utils/apiFetch";
+import { useSession } from "../../utils/auth";
 
 function EmptyZen() {
   return (
@@ -34,13 +35,15 @@ function EmptyZen() {
 
 export default function Alerts() {
   const insets = useSafeAreaInsets();
+  const { isReady, isAuthenticated } = useSession();
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
 
   useEffect(() => {
+    if (!isReady || !isAuthenticated) return;
     loadAlerts();
-  }, []);
+  }, [isReady, isAuthenticated]);
 
   const loadAlerts = async () => {
     try {
