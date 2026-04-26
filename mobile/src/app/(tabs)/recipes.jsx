@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Alert,
+  useWindowDimensions,
 } from "react-native";
 import { useEffect, useState, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,8 +20,10 @@ import {
   AlertCircle,
   ArrowLeft,
   ChevronRight,
+  Sparkles,
+  Flame,
 } from "lucide-react-native";
-import Svg, { Path, Circle } from "react-native-svg";
+import Svg, { Path, Circle, Defs, LinearGradient, Stop, Rect } from "react-native-svg";
 import { T } from "../../theme";
 
 const CATEGORIES = [
@@ -57,6 +60,109 @@ function EmptyPeaceful() {
 
 const fmtEUR = (n) => `€${Number(n).toFixed(2)}`;
 
+function getInitials(name) {
+  if (!name) return "?";
+  const words = name.trim().split(/\s+/);
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+// "Arte" del plato — placeholder hasta que haya foto real.
+// Gradiente de la categoría + iniciales en grande tipo monograma de carta.
+function DishArt({ cat, name }) {
+  const initials = getInitials(name);
+  const gradId = `g-${cat.key}`;
+  return (
+    <View style={{ width: "100%", aspectRatio: 1.15, position: "relative" }}>
+      <Svg width="100%" height="100%" viewBox="0 0 200 174" preserveAspectRatio="xMidYMid slice">
+        <Defs>
+          <LinearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor={cat.soft} stopOpacity="1" />
+            <Stop offset="1" stopColor={cat.color} stopOpacity="0.85" />
+          </LinearGradient>
+        </Defs>
+        <Rect width="200" height="174" fill={`url(#${gradId})`} />
+        {/* círculos decorativos suaves */}
+        <Circle cx="40" cy="30" r="50" fill="#fff" opacity="0.08" />
+        <Circle cx="170" cy="150" r="40" fill="#fff" opacity="0.10" />
+        <Circle cx="100" cy="87" r="46" fill="#fff" opacity="0.22" />
+        <Circle cx="100" cy="87" r="46" stroke="#fff" strokeWidth="1.5" opacity="0.5" fill="none" />
+      </Svg>
+      <View
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 44,
+            fontFamily: T.serif,
+            color: "#fff",
+            letterSpacing: -1.5,
+            textShadowColor: "rgba(0,0,0,0.18)",
+            textShadowOffset: { width: 0, height: 1 },
+            textShadowRadius: 2,
+          }}
+        >
+          {initials}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function RarityBadge({ tier }) {
+  if (tier === "gold") {
+    return (
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 3,
+          backgroundColor: "#FFF6DC",
+          borderWidth: 1,
+          borderColor: "#E8B931",
+          paddingHorizontal: 7,
+          paddingVertical: 3,
+          borderRadius: 999,
+        }}
+      >
+        <Sparkles size={9} color="#9C7A12" />
+        <Text style={{ fontSize: 9, fontWeight: "800", color: "#9C7A12", letterSpacing: 0.8 }}>
+          ESTRELLA
+        </Text>
+      </View>
+    );
+  }
+  if (tier === "risky") {
+    return (
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 3,
+          backgroundColor: T.primarySoft,
+          paddingHorizontal: 7,
+          paddingVertical: 3,
+          borderRadius: 999,
+        }}
+      >
+        <Flame size={9} color={T.primary} />
+        <Text style={{ fontSize: 9, fontWeight: "800", color: T.primary, letterSpacing: 0.8 }}>
+          RIESGO
+        </Text>
+      </View>
+    );
+  }
+  return null;
+}
+
 function RecipeCard({ r }) {
   const cost = parseFloat(r.total_cost || 0);
   const sale = parseFloat(r.sale_price || 0);
@@ -64,111 +170,157 @@ function RecipeCard({ r }) {
   const foodCost = parseFloat(r.actual_food_cost_percentage || 0);
   const target = parseFloat(r.target_food_cost_percentage || 35);
   const isRisky = foodCost > target;
+  const isGold = sale > 0 && foodCost > 0 && foodCost <= target - 5;
+  const tier = isGold ? "gold" : isRisky ? "risky" : "normal";
   const cat = getCat(r.category);
+  const ingCount = Number(r.ingredient_count || 0);
+
+  const borderColor = tier === "gold" ? "#E8B931" : T.line;
+  const borderWidth = tier === "gold" ? 1.5 : 1;
 
   return (
     <View
       style={{
         backgroundColor: T.surface,
-        borderRadius: 18,
-        borderWidth: 1,
-        borderColor: T.line,
+        borderRadius: 16,
+        borderWidth,
+        borderColor,
         overflow: "hidden",
         shadowColor: "#2B1D12",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+        elevation: 3,
       }}
     >
-      {/* Franja superior de color por categoría */}
-      <View style={{ height: 4, backgroundColor: cat.color }} />
-
-      <View style={{ padding: 18 }}>
-        {/* Badges */}
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <View
+      {/* Header tipo "tipo Pokemon" */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          backgroundColor: cat.soft,
+          borderBottomWidth: 2,
+          borderBottomColor: cat.color,
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: cat.color }} />
+          <Text
             style={{
-              backgroundColor: cat.soft,
-              paddingHorizontal: 10,
-              paddingVertical: 4,
-              borderRadius: 20,
+              fontSize: 9,
+              fontWeight: "800",
+              color: cat.color,
+              letterSpacing: 1.2,
+              textTransform: "uppercase",
             }}
+            numberOfLines={1}
           >
-            <Text style={{ fontSize: 10, fontWeight: "700", color: cat.color, letterSpacing: 1.2, textTransform: "uppercase" }}>
-              {cat.label}
-            </Text>
-          </View>
-          {isRisky && (
-            <View
-              style={{
-                backgroundColor: T.primarySoft,
-                paddingHorizontal: 8,
-                paddingVertical: 4,
-                borderRadius: 20,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 4,
-              }}
-            >
-              <AlertCircle size={10} color={T.primary} />
-              <Text style={{ fontSize: 10, fontWeight: "700", color: T.primary }}>En riesgo</Text>
-            </View>
-          )}
+            {cat.label}
+          </Text>
         </View>
+        <RarityBadge tier={tier} />
+      </View>
 
-        {/* Nombre y PVP */}
-        <Text style={{ fontSize: 20, fontFamily: T.serif, color: T.ink, letterSpacing: -0.4, marginBottom: 3 }}>
-          {r.name}
-        </Text>
-        <Text style={{ fontSize: 13, color: T.muted, marginBottom: 16 }}>
-          PVP {fmtEUR(sale)}
-        </Text>
-
-        {/* Stats */}
+      {/* Frame del "arte" del plato */}
+      <View style={{ padding: 8, paddingBottom: 0 }}>
         <View
           style={{
-            flexDirection: "row",
-            borderTopWidth: 1,
-            borderTopColor: T.line,
-            paddingTop: 14,
-            gap: 0,
+            borderRadius: 10,
+            overflow: "hidden",
+            borderWidth: 1,
+            borderColor: T.line,
           }}
         >
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 9, fontWeight: "700", color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 5 }}>
-              Coste
-            </Text>
-            <Text style={{ fontSize: 17, fontFamily: T.serif, color: T.inkSoft, letterSpacing: -0.2 }}>
-              {fmtEUR(cost)}
-            </Text>
-          </View>
-          <View style={{ width: 1, backgroundColor: T.line, marginHorizontal: 14, borderRadius: 1 }} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 9, fontWeight: "700", color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 5 }}>
-              Margen
-            </Text>
-            <Text style={{ fontSize: 17, fontFamily: T.serif, color: margin >= 0 ? T.ok : T.primary, letterSpacing: -0.2 }}>
-              {fmtEUR(margin)}
-            </Text>
-          </View>
-          <View style={{ width: 1, backgroundColor: T.line, marginHorizontal: 14, borderRadius: 1 }} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 9, fontWeight: "700", color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 5 }}>
-              Food cost
-            </Text>
-            <Text style={{ fontSize: 17, fontFamily: T.serif, color: isRisky ? T.primary : T.ink, letterSpacing: -0.2 }}>
-              {foodCost.toFixed(1)}%
-            </Text>
-          </View>
+          <DishArt cat={cat} name={r.name} />
+        </View>
+      </View>
+
+      {/* Nombre + ingredientes */}
+      <View style={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4 }}>
+        <Text
+          style={{
+            fontSize: 16,
+            fontFamily: T.serif,
+            color: T.ink,
+            letterSpacing: -0.3,
+            lineHeight: 20,
+          }}
+          numberOfLines={2}
+        >
+          {r.name}
+        </Text>
+        <Text style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>
+          {ingCount} {ingCount === 1 ? "ingrediente" : "ingredientes"}
+        </Text>
+      </View>
+
+      {/* Stats grid 2x2 tipo carta */}
+      <View
+        style={{
+          marginHorizontal: 12,
+          marginTop: 10,
+          marginBottom: 12,
+          borderRadius: 10,
+          backgroundColor: T.bg,
+          borderWidth: 1,
+          borderColor: T.line,
+          overflow: "hidden",
+        }}
+      >
+        <View style={{ flexDirection: "row" }}>
+          <Stat label="PVP" value={fmtEUR(sale)} color={T.ink} />
+          <View style={{ width: 1, backgroundColor: T.line }} />
+          <Stat label="Coste" value={fmtEUR(cost)} color={T.inkSoft} />
+        </View>
+        <View style={{ height: 1, backgroundColor: T.line }} />
+        <View style={{ flexDirection: "row" }}>
+          <Stat
+            label="Margen"
+            value={fmtEUR(margin)}
+            color={margin >= 0 ? T.ok : T.primary}
+          />
+          <View style={{ width: 1, backgroundColor: T.line }} />
+          <Stat
+            label="Food cost"
+            value={`${foodCost.toFixed(1)}%`}
+            color={isRisky ? T.primary : isGold ? T.ok : T.ink}
+          />
         </View>
       </View>
     </View>
   );
 }
 
+function Stat({ label, value, color }) {
+  return (
+    <View style={{ flex: 1, paddingHorizontal: 10, paddingVertical: 9 }}>
+      <Text
+        style={{
+          fontSize: 8,
+          fontWeight: "800",
+          color: T.muted,
+          letterSpacing: 1.3,
+          textTransform: "uppercase",
+          marginBottom: 3,
+        }}
+      >
+        {label}
+      </Text>
+      <Text style={{ fontSize: 14, fontFamily: T.serif, color, letterSpacing: -0.2 }}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
 export default function Recipes() {
   const insets = useSafeAreaInsets();
+  const { width: winWidth } = useWindowDimensions();
+  const numCols = winWidth >= 1100 ? 4 : winWidth >= 760 ? 3 : 2;
+  const cardGap = 14;
   const [recipes, setRecipes] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -655,7 +807,13 @@ export default function Recipes() {
       ) : (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 120 }}
+          contentContainerStyle={{
+            paddingHorizontal: 20,
+            paddingBottom: insets.bottom + 120,
+            maxWidth: 1280,
+            width: "100%",
+            alignSelf: "center",
+          }}
           showsVerticalScrollIndicator={false}
         >
           {recipes.length === 0 ? (
@@ -698,10 +856,25 @@ export default function Recipes() {
                   </Text>
                 </View>
 
-                {/* Tarjetas */}
-                <View style={{ gap: 12 }}>
+                {/* Tarjetas en grid responsive */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    marginHorizontal: -cardGap / 2,
+                  }}
+                >
                   {group.recipes.map((r) => (
-                    <RecipeCard key={r.id} r={r} />
+                    <View
+                      key={r.id}
+                      style={{
+                        width: `${100 / numCols}%`,
+                        paddingHorizontal: cardGap / 2,
+                        marginBottom: cardGap,
+                      }}
+                    >
+                      <RecipeCard r={r} />
+                    </View>
                   ))}
                 </View>
               </View>

@@ -15,7 +15,8 @@ async function handler(req, res) {
         r.category,
         r.target_food_cost_percentage,
         r.created_at,
-        COALESCE(SUM(ri.quantity * p.current_price), 0) AS total_cost
+        COALESCE(SUM(ri.quantity * p.current_price), 0) AS total_cost,
+        COUNT(ri.id) AS ingredient_count
       FROM recipes r
       LEFT JOIN recipe_ingredients ri ON ri.recipe_id = r.id
       LEFT JOIN products p ON p.id = ri.product_id
@@ -37,6 +38,7 @@ async function handler(req, res) {
         target_food_cost_percentage: r.target_food_cost_percentage,
         actual_food_cost_percentage: actualFoodCost.toFixed(2),
         total_cost: totalCost.toFixed(2),
+        ingredient_count: Number(r.ingredient_count) || 0,
         created_at: r.created_at,
       };
     });
