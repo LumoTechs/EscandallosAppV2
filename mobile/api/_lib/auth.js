@@ -5,6 +5,8 @@
 const DEFAULT_ALLOWED_HOSTS = [
   /^localhost(:\d+)?$/i,
   /\.vercel\.app$/i,
+  /^lumotech\.app$/i,
+  /\.lumotech\.app$/i,
 ];
 
 function parseAllowedHosts() {
