@@ -1,5 +1,6 @@
 // api/invoices/process.js
 import { getAdminClient } from '../_lib/supabase.js';
+import { compose, rateLimit, requireSameOrigin, requireSharedSecret } from '../_lib/auth.js';
 
 // ============================================
 // PROMPT REFORZADO para OCR de facturas
@@ -95,7 +96,7 @@ function extractFirstJsonObject(text) {
   return null;
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método no permitido' });
   }
@@ -335,3 +336,10 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: err.message || 'Error procesando factura' });
   }
 }
+
+// 30 req/h por IP + Origin de la app + secreto opcional (cuando se active).
+export default compose(
+  rateLimit({ limit: 30, windowMs: 60 * 60 * 1000 }),
+  requireSameOrigin,
+  requireSharedSecret,
+)(handler);

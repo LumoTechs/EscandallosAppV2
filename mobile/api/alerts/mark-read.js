@@ -1,7 +1,8 @@
 // api/alerts/mark-read.js
 import { getAdminClient } from '../_lib/supabase.js';
+import { requireSharedSecret } from '../_lib/auth.js';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método no permitido' });
   }
@@ -31,3 +32,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: err.message });
   }
 }
+
+export default requireSharedSecret(handler);

@@ -2,6 +2,7 @@
 // Devuelve histórico de precios + stats {min, max, points} para el chart de evolución.
 
 import { getAdminClient } from '../../_lib/supabase.js';
+import { requireSharedSecret } from '../../_lib/auth.js';
 
 const RANGE_DAYS = {
   '1m': 30,
@@ -9,7 +10,7 @@ const RANGE_DAYS = {
   '1y': 365,
 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método no permitido' });
   }
@@ -62,3 +63,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: err.message });
   }
 }
+
+export default requireSharedSecret(handler);

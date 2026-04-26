@@ -4,8 +4,9 @@
 // DELETE → borrar producto (bloqueado si está usado en alguna receta)
 
 import { getAdminClient } from '../../_lib/supabase.js';
+import { requireSharedSecret } from '../../_lib/auth.js';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const { id } = req.query;
 
   if (!id) {
@@ -183,3 +184,5 @@ async function handleDelete(supabase, id, res) {
     return res.status(500).json({ error: err.message });
   }
 }
+
+export default requireSharedSecret(handler);
