@@ -22,6 +22,7 @@ import Svg, {
 } from "react-native-svg";
 import { ArrowUpRight, TrendingUp, ChefHat, Sparkles, Flame, LogOut } from "lucide-react-native";
 import { T } from "../../theme";
+import { apiFetch } from "../../utils/apiFetch";
 import { useSession } from "../../utils/auth";
 
 const RECIPE_CATEGORIES = [
@@ -193,8 +194,8 @@ export default function Dashboard() {
   const loadDashboardData = async () => {
     try {
       const [alertsRes, recipesRes] = await Promise.all([
-        fetch("/api/alerts/list?unread_only=true"),
-        fetch("/api/recipes/list"),
+        apiFetch("/api/alerts/list?unread_only=true"),
+        apiFetch("/api/recipes/list"),
       ]);
       const alertsData = await alertsRes.json();
       const recipesData = await recipesRes.json();

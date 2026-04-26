@@ -13,6 +13,7 @@ import * as ImagePicker from "expo-image-picker";
 import { Camera, FileText, Check, AlertCircle } from "lucide-react-native";
 import Svg, { Path, Rect, Circle, Line } from "react-native-svg";
 import { T } from "../../theme";
+import { apiFetch } from "../../utils/apiFetch";
 
 function InvoiceIllustration() {
   return (
@@ -73,7 +74,7 @@ export default function UploadInvoice() {
       reader.onloadend = async () => {
         const base64 = reader.result;
         try {
-          const apiResponse = await fetch("/api/invoices/process", {
+          const apiResponse = await apiFetch("/api/invoices/process", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ base64File: base64 }),

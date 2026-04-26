@@ -1,5 +1,5 @@
 import { query } from '../_lib/db.js';
-import { requireSharedSecret } from '../_lib/auth.js';
+import { requireAuth } from '../_lib/auth.js';
 
 async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -50,4 +50,4 @@ async function handler(req, res) {
   }
 }
 
-export default requireSharedSecret(handler);
+export default requireAuth(handler);

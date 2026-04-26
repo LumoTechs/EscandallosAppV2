@@ -1,6 +1,8 @@
 // api/_lib/auth.js
 // Middlewares de protección para endpoints públicos.
-// MVP placeholder hasta que llegue auth real con Supabase JWT + RLS por restaurant_id.
+// MVP single-tenant: requireAuth valida JWT Supabase. Multi-tenant (restaurant_id + RLS) pendiente.
+
+import { getAdminClient } from './supabase.js';
 
 const DEFAULT_ALLOWED_HOSTS = [
   /^localhost(:\d+)?$/i,
@@ -75,9 +77,35 @@ export function rateLimit({ limit, windowMs }) {
   };
 }
 
-// No-op cuando API_SHARED_SECRET no está configurado. Permite desplegar el código
-// de protección antes de que el frontend mande el header. Activación = setear la
-// env var en Vercel una vez el frontend envíe `x-api-key`.
+// Valida JWT Supabase del header Authorization: Bearer <token>.
+// Inyecta req.user con el user verificado. 401 si falta o es inválido.
+export function requireAuth(handler) {
+  return async (req, res) => {
+    const header = req.headers.authorization || req.headers.Authorization;
+    if (!header || !header.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Token requerido' });
+    }
+    const token = header.slice(7).trim();
+    if (!token) {
+      return res.status(401).json({ error: 'Token requerido' });
+    }
+    try {
+      const admin = getAdminClient();
+      const { data, error } = await admin.auth.getUser(token);
+      if (error || !data?.user) {
+        return res.status(401).json({ error: 'Token inválido' });
+      }
+      req.user = data.user;
+      return handler(req, res);
+    } catch (err) {
+      console.error('requireAuth error:', err);
+      return res.status(500).json({ error: 'Auth check failed' });
+    }
+  };
+}
+
+// LEGACY: no-op cuando API_SHARED_SECRET no está configurado. Mantenido para
+// compatibilidad mientras se migra todo a requireAuth.
 export function requireSharedSecret(handler) {
   return async (req, res) => {
     const expected = process.env.API_SHARED_SECRET;

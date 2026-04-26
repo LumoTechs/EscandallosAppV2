@@ -11,6 +11,7 @@ import { StatusBar } from "expo-status-bar";
 import Svg, { Path, Circle, Line } from "react-native-svg";
 import { Check } from "lucide-react-native";
 import { T } from "../../theme";
+import { apiFetch } from "../../utils/apiFetch";
 
 function EmptyZen() {
   return (
@@ -43,7 +44,7 @@ export default function Alerts() {
 
   const loadAlerts = async () => {
     try {
-      const response = await fetch("/api/alerts/list");
+      const response = await apiFetch("/api/alerts/list");
       const data = await response.json();
       setAlerts(data.alerts || []);
     } catch (error) {
@@ -55,7 +56,7 @@ export default function Alerts() {
 
   const markAsRead = async (id) => {
     try {
-      await fetch("/api/alerts/mark-read", {
+      await apiFetch("/api/alerts/mark-read", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),

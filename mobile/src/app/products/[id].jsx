@@ -31,6 +31,7 @@ import {
   Check,
 } from "lucide-react-native";
 import { T } from "../../theme";
+import { apiFetch } from "../../utils/apiFetch";
 
 // Gráfico de área con eje y tooltip sobrio
 function PriceChart({ data, width = 320, height = 160 }) {
@@ -208,8 +209,8 @@ export default function ProductDetail() {
     try {
       setLoading(true);
       const [pRes, hRes] = await Promise.all([
-        fetch(`/api/products/${id}`),
-        fetch(`/api/products/${id}/history?range=6m`),
+        apiFetch(`/api/products/${id}`),
+        apiFetch(`/api/products/${id}/history?range=6m`),
       ]);
       if (!pRes.ok) throw new Error(`Producto: ${pRes.status}`);
       const pData = await pRes.json();
@@ -231,7 +232,7 @@ export default function ProductDetail() {
   const patch = async (body) => {
     try {
       setSaving(true);
-      const res = await fetch(`/api/products/${id}`, {
+      const res = await apiFetch(`/api/products/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -241,7 +242,7 @@ export default function ProductDetail() {
       setProduct((prev) => ({ ...prev, ...data.product }));
       // si cambió el precio, recargamos historial
       if (body.current_price !== undefined) {
-        const hRes = await fetch(`/api/products/${id}/history?range=6m`);
+        const hRes = await apiFetch(`/api/products/${id}/history?range=6m`);
         const hData = await hRes.json();
         setHistory(hData.history || []);
         setStats(hData.stats);
@@ -263,7 +264,7 @@ export default function ProductDetail() {
           text: "Eliminar",
           style: "destructive",
           onPress: async () => {
-            const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
+            const res = await apiFetch(`/api/products/${id}`, { method: "DELETE" });
             const data = await res.json();
             if (!res.ok) {
               Alert.alert("No se puede eliminar", data.error);

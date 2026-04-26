@@ -2,7 +2,7 @@
 // Devuelve histórico de precios + stats {min, max, points} para el chart de evolución.
 
 import { getAdminClient } from '../../_lib/supabase.js';
-import { requireSharedSecret } from '../../_lib/auth.js';
+import { requireAuth } from '../../_lib/auth.js';
 
 const RANGE_DAYS = {
   '1m': 30,
@@ -64,4 +64,4 @@ async function handler(req, res) {
   }
 }
 
-export default requireSharedSecret(handler);
+export default requireAuth(handler);

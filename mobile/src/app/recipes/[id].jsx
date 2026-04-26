@@ -14,6 +14,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import Svg, { Defs, LinearGradient, Stop, Rect, Circle } from "react-native-svg";
 import { ArrowLeft, Sparkles, Flame, AlertCircle } from "lucide-react-native";
 import { T } from "../../theme";
+import { apiFetch } from "../../utils/apiFetch";
 
 const CATEGORIES = [
   { key: "entrantes",   label: "Entrantes",   color: "#4F7A3C", soft: "#ECF3E5" },
@@ -173,7 +174,7 @@ export default function RecipeDetail() {
     let alive = true;
     (async () => {
       try {
-        const res = await fetch(`/api/recipes/${id}`);
+        const res = await apiFetch(`/api/recipes/${id}`);
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           if (alive) setError(err.error || `HTTP ${res.status}`);

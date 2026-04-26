@@ -21,6 +21,7 @@ import {
 import { useRouter } from "expo-router";
 import Svg, { Path, Circle, Defs, LinearGradient, Stop, Rect } from "react-native-svg";
 import { T } from "../../theme";
+import { apiFetch } from "../../utils/apiFetch";
 
 // Paleta para asignar color por proveedor (hash → índice)
 const SUPPLIER_PALETTE = [
@@ -119,7 +120,7 @@ export default function Products() {
     try {
       const params = new URLSearchParams({ grouped: "true" });
       if (search) params.append("search", search);
-      const res = await fetch(`/api/products/list?${params}`);
+      const res = await apiFetch(`/api/products/list?${params}`);
       const data = await res.json();
       setGroups(data.groups || []);
     } catch (e) {

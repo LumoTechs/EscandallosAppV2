@@ -1,6 +1,6 @@
 // api/invoices/process.js
 import { getAdminClient } from '../_lib/supabase.js';
-import { compose, rateLimit, requireSameOrigin, requireSharedSecret } from '../_lib/auth.js';
+import { compose, rateLimit, requireSameOrigin, requireAuth } from '../_lib/auth.js';
 
 // ============================================
 // PROMPT REFORZADO para OCR de facturas
@@ -347,5 +347,5 @@ async function handler(req, res) {
 export default compose(
   rateLimit({ limit: 30, windowMs: 60 * 60 * 1000 }),
   requireSameOrigin,
-  requireSharedSecret,
+  requireAuth,
 )(handler);

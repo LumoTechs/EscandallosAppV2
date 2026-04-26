@@ -26,6 +26,7 @@ import {
 import Svg, { Path, Circle, Defs, LinearGradient, Stop, Rect } from "react-native-svg";
 import { useRouter } from "expo-router";
 import { T } from "../../theme";
+import { apiFetch } from "../../utils/apiFetch";
 
 const CATEGORIES = [
   { key: "entrantes",   label: "Entrantes",   color: "#4F7A3C", soft: "#ECF3E5" },
@@ -342,8 +343,8 @@ export default function Recipes() {
   const loadData = async () => {
     try {
       const [recipesRes, productsRes] = await Promise.all([
-        fetch("/api/recipes/list"),
-        fetch("/api/products/list"),
+        apiFetch("/api/recipes/list"),
+        apiFetch("/api/products/list"),
       ]);
       const rd = await recipesRes.json();
       const pd = await productsRes.json();
@@ -418,7 +419,7 @@ export default function Recipes() {
     if (!newName || !newSalePrice || newIngredients.length === 0) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/recipes/create", {
+      const res = await apiFetch("/api/recipes/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
