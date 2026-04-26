@@ -24,6 +24,7 @@ import {
   Flame,
 } from "lucide-react-native";
 import Svg, { Path, Circle, Defs, LinearGradient, Stop, Rect } from "react-native-svg";
+import { useRouter } from "expo-router";
 import { T } from "../../theme";
 
 const CATEGORIES = [
@@ -318,6 +319,7 @@ function Stat({ label, value, color }) {
 
 export default function Recipes() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { width: winWidth } = useWindowDimensions();
   const numCols = winWidth >= 1100 ? 4 : winWidth >= 760 ? 3 : 2;
   const cardGap = 14;
@@ -865,8 +867,10 @@ export default function Recipes() {
                   }}
                 >
                   {group.recipes.map((r) => (
-                    <View
+                    <TouchableOpacity
                       key={r.id}
+                      activeOpacity={0.85}
+                      onPress={() => router.push(`/recipes/${r.id}`)}
                       style={{
                         width: `${100 / numCols}%`,
                         paddingHorizontal: cardGap / 2,
@@ -874,7 +878,7 @@ export default function Recipes() {
                       }}
                     >
                       <RecipeCard r={r} />
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               </View>
