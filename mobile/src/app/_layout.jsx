@@ -24,25 +24,29 @@ function AuthGate({ children }) {
   const { isReady, isAuthenticated } = useSession();
   const router = useRouter();
   const segments = useSegments();
+  const onLogin = segments[0] === 'login';
 
   useEffect(() => {
     if (!isReady) return;
     SplashScreen.hideAsync();
-    const onLogin = segments[0] === 'login';
     if (!isAuthenticated && !onLogin) {
       router.replace('/login');
     } else if (isAuthenticated && onLogin) {
       router.replace('/(tabs)');
     }
-  }, [isReady, isAuthenticated, segments, router]);
+  }, [isReady, isAuthenticated, onLogin, router]);
 
-  if (!isReady) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: T.bg }}>
-        <ActivityIndicator color={T.primary} />
-      </View>
-    );
-  }
+  // Bloquear el render de hijos hasta que la ruta y el estado de sesión casen.
+  // Si no, las pantallas protegidas montan brevemente antes del replace y
+  // disparan fetches/efectos que el usuario no autorizado no debería ver.
+  const Spinner = (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: T.bg }}>
+      <ActivityIndicator color={T.primary} />
+    </View>
+  );
+  if (!isReady) return Spinner;
+  if (!isAuthenticated && !onLogin) return Spinner;
+  if (isAuthenticated && onLogin) return Spinner;
   return children;
 }
 
