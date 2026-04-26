@@ -30,7 +30,7 @@ import {
   Edit3,
   Check,
 } from "lucide-react-native";
-import { T } from "../../../theme";
+import { T } from "../../theme";
 
 // Gráfico de área con eje y tooltip sobrio
 function PriceChart({ data, width = 320, height = 160 }) {
