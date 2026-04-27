@@ -232,8 +232,10 @@ export default function Alerts() {
               {filteredAlerts.map((alert) => {
                 const colors = getSeverityColors(alert.severity);
                 return (
-                  <View
+                  <TouchableOpacity
                     key={alert.id}
+                    activeOpacity={alert.is_read ? 1 : 0.78}
+                    onPress={() => !alert.is_read && markAsRead(alert.id)}
                     style={{
                       backgroundColor: T.surface,
                       borderWidth: 1,
@@ -371,7 +373,7 @@ export default function Alerts() {
                         </TouchableOpacity>
                       )}
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>

@@ -463,8 +463,10 @@ export default function Dashboard() {
               ) : (
                 <View style={{ gap: 10 }}>
                   {criticalAlerts.slice(0, 3).map((alert) => (
-                    <View
+                    <TouchableOpacity
                       key={alert.id}
+                      activeOpacity={0.7}
+                      onPress={() => router.push("/(tabs)/alerts")}
                       style={{
                         flexDirection: "row",
                         gap: 12,
@@ -485,7 +487,7 @@ export default function Dashboard() {
                           })}
                         </Text>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               )}
