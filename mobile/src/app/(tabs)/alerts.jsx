@@ -189,22 +189,19 @@ export default function Alerts() {
               {filteredAlerts.map((alert) => {
                 const colors = getSeverityColors(alert.severity);
                 return (
-                  <View key={alert.id} style={{ flexDirection: "row", gap: 10, alignItems: "stretch" }}>
-
-                    {/* Tarjeta de alerta */}
-                    <TouchableOpacity
-                      activeOpacity={alert.is_read ? 1 : 0.78}
-                      onPress={() => !alert.is_read && markAsRead(alert.id)}
-                      style={{
-                        flex: 1,
-                        backgroundColor: T.surface,
-                        borderWidth: 1,
-                        borderColor: T.line,
-                        borderRadius: 14,
-                        overflow: "hidden",
-                        opacity: alert.is_read ? 0.75 : 1,
-                      }}
-                    >
+                  <TouchableOpacity
+                    key={alert.id}
+                    activeOpacity={alert.is_read ? 1 : 0.78}
+                    onPress={() => !alert.is_read && markAsRead(alert.id)}
+                    style={{
+                      backgroundColor: T.surface,
+                      borderWidth: 1,
+                      borderColor: T.line,
+                      borderRadius: 14,
+                      overflow: "hidden",
+                      opacity: alert.is_read ? 0.75 : 1,
+                    }}
+                  >
                       {/* Banda tipo */}
                       <View
                         style={{
@@ -224,14 +221,23 @@ export default function Alerts() {
                             {colors.label}
                           </Text>
                         </View>
-                        {!alert.is_read && (
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent }} />
-                            <Text style={{ fontSize: 10, fontWeight: "700", color: colors.accent, letterSpacing: 0.8 }}>
-                              NUEVA
-                            </Text>
-                          </View>
-                        )}
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                          {!alert.is_read && (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent }} />
+                              <Text style={{ fontSize: 10, fontWeight: "700", color: colors.accent, letterSpacing: 0.8 }}>
+                                NUEVA
+                              </Text>
+                            </View>
+                          )}
+                          <TouchableOpacity
+                            onPress={() => deleteAlert(alert.id)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            activeOpacity={0.6}
+                          >
+                            <Trash2 size={14} color={colors.accent} strokeWidth={2} opacity={0.55} />
+                          </TouchableOpacity>
+                        </View>
                       </View>
 
                       <View style={{ padding: 16 }}>
@@ -271,30 +277,7 @@ export default function Alerts() {
                           </TouchableOpacity>
                         )}
                       </View>
-                    </TouchableOpacity>
-
-                    {/* Botón eliminar */}
-                    <TouchableOpacity
-                      activeOpacity={0.75}
-                      onPress={() => deleteAlert(alert.id)}
-                      style={{
-                        width: 56,
-                        backgroundColor: T.primarySoft,
-                        borderWidth: 1,
-                        borderColor: T.primary,
-                        borderRadius: 14,
-                        justifyContent: "center",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                    >
-                      <Trash2 size={20} color={T.primary} strokeWidth={2} />
-                      <Text style={{ fontSize: 9, fontWeight: "700", color: T.primary, letterSpacing: 0.5 }}>
-                        BORRAR
-                      </Text>
-                    </TouchableOpacity>
-
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
