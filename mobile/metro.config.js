@@ -15,6 +15,8 @@ const config = getDefaultConfig(__dirname);
 config.maxWorkers = 6;
 
 const WEB_ALIASES = {
+  'bufferutil': path.resolve(__dirname, './polyfills/web/empty-native-module.js'),
+  'utf-8-validate': path.resolve(__dirname, './polyfills/web/empty-native-module.js'),
   'expo-secure-store': path.resolve(__dirname, './polyfills/web/secureStore.web.ts'),
   'react-native-webview': path.resolve(__dirname, './polyfills/web/webview.web.tsx'),
   'react-native-safe-area-context': path.resolve(
