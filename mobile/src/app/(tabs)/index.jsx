@@ -127,18 +127,34 @@ function Sparkline({ data, color = T.primary, width = 280, height = 50 }) {
   );
 }
 
+function fmtEur(v) {
+  if (v >= 1000) return `€${(v / 1000).toFixed(1)}k`;
+  return `€${Math.round(v)}`;
+}
+
 function BarChart({ data, color = T.primary, width = 300, height = 100 }) {
   if (!data || data.length === 0) return null;
   const max = Math.max(...data.map((d) => d.value));
   const barW = (width - (data.length - 1) * 6) / data.length;
+  const VALUE_AREA = 16;
   return (
-    <Svg width={width} height={height + 20}>
+    <Svg width={width} height={VALUE_AREA + height + 20}>
       {data.map((d, i) => {
         const h = (d.value / max) * height;
         const x = i * (barW + 6);
-        const y = height - h;
+        const y = VALUE_AREA + (height - h);
         return (
           <React.Fragment key={i}>
+            <SvgText
+              x={x + barW / 2}
+              y={VALUE_AREA - 4}
+              fontSize="8"
+              fontWeight="700"
+              fill={color}
+              textAnchor="middle"
+            >
+              {fmtEur(d.value)}
+            </SvgText>
             <Rect
               x={x}
               y={y}
@@ -150,7 +166,7 @@ function BarChart({ data, color = T.primary, width = 300, height = 100 }) {
             />
             <SvgText
               x={x + barW / 2}
-              y={height + 14}
+              y={VALUE_AREA + height + 14}
               fontSize="9"
               fill={T.muted}
               textAnchor="middle"
