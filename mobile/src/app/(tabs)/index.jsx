@@ -202,11 +202,25 @@ export default function Dashboard() {
   const [recipes, setRecipes] = useState([]);
   const [suppliersData, setSuppliersData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [savingsEstimate, setSavingsEstimate] = useState(null);
 
   useEffect(() => {
     if (!isReady || !isAuthenticated) return;
     loadDashboardData();
   }, [isReady, isAuthenticated]);
+
+  const loadSavingsEstimate = async () => {
+    try {
+      const res = await apiFetch("/api/dashboard/savings-estimate");
+      const data = await res.json();
+      if (typeof data.savings_eur === "number") {
+        setSavingsEstimate(data);
+      }
+    } catch (err) {
+      console.error("Error loading savings estimate:", err);
+      setSavingsEstimate({ savings_eur: 0, monthly_trend: [], summary: "Sin datos suficientes aún" });
+    }
+  };
 
   const loadDashboardData = async () => {
     try {
@@ -230,6 +244,7 @@ export default function Dashboard() {
       console.error("Error loading dashboard:", error);
     } finally {
       setLoading(false);
+      loadSavingsEstimate();
     }
   };
 
@@ -323,39 +338,49 @@ export default function Dashboard() {
           showsVerticalScrollIndicator={false}
         >
           <View style={{ paddingHorizontal: 24 }}>
-            {/* Hero */}
+            {/* Hero — Ahorro estimado por Opus */}
             <View style={{ backgroundColor: T.ink, borderRadius: 20, padding: 24, marginBottom: 16, overflow: "hidden" }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <View>
-                  <Text style={{ fontSize: 10, fontWeight: "600", color: T.accent, letterSpacing: 2, textTransform: "uppercase" }}>
-                    Food cost medio
-                  </Text>
-                  <Text style={{ fontSize: 44, fontFamily: T.serif, color: "#fff", letterSpacing: -1, marginTop: 8 }}>
-                    {avgFoodCost.toFixed(0)}
-                    <Text style={{ fontSize: 24, color: T.accent }}>%</Text>
+              {savingsEstimate === null ? (
+                <View style={{ alignItems: "center", paddingVertical: 24 }}>
+                  <ActivityIndicator size="small" color={T.accent} />
+                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 10, letterSpacing: 0.3 }}>
+                    Calculando ahorro estimado…
                   </Text>
                 </View>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 4,
-                    backgroundColor: "rgba(217,131,36,0.18)",
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 999,
-                  }}
-                >
-                  <TrendingUp color={T.accent} size={12} strokeWidth={2.2} />
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: T.accent }}>+2.1%</Text>
-                </View>
-              </View>
-              <View style={{ marginTop: 16, marginHorizontal: -4 }}>
-                <Sparkline data={costTrend} color={T.accent} width={280} height={50} />
-              </View>
-              <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 8, letterSpacing: 0.3 }}>
-                Últimos 8 días
-              </Text>
+              ) : (
+                <>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <View>
+                      <Text style={{ fontSize: 10, fontWeight: "600", color: T.accent, letterSpacing: 2, textTransform: "uppercase" }}>
+                        Ahorro estimado
+                      </Text>
+                      <Text style={{ fontSize: 44, fontFamily: T.serif, color: "#fff", letterSpacing: -1, marginTop: 8 }}>
+                        €{savingsEstimate.savings_eur.toLocaleString("es-ES")}
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
+                        backgroundColor: "rgba(217,131,36,0.18)",
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 999,
+                      }}
+                    >
+                      <Sparkles color={T.accent} size={12} strokeWidth={2.2} />
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: T.accent }}>IA</Text>
+                    </View>
+                  </View>
+                  <View style={{ marginTop: 16, marginHorizontal: -4 }}>
+                    <Sparkline data={savingsEstimate.monthly_trend} color={T.accent} width={280} height={50} />
+                  </View>
+                  <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 8, letterSpacing: 0.3 }}>
+                    {savingsEstimate.summary}
+                  </Text>
+                </>
+              )}
             </View>
 
             {/* Métricas */}
