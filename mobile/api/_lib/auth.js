@@ -2,7 +2,7 @@
 // Middlewares de protección para endpoints públicos.
 // MVP single-tenant: requireAuth valida JWT Supabase. Multi-tenant (restaurant_id + RLS) pendiente.
 
-import { getAdminClient } from './supabase.js';
+import { verifySupabaseJwt } from './jwt.js';
 
 const DEFAULT_ALLOWED_HOSTS = [
   /^localhost(:\d+)?$/i,
@@ -78,7 +78,8 @@ export function rateLimit({ limit, windowMs }) {
 }
 
 // Valida JWT Supabase del header Authorization: Bearer <token>.
-// Inyecta req.user con el user verificado. 401 si falta o es inválido.
+// Verificación local con JWKS cacheado: ~1ms vs ~150-300ms del getUser remoto.
+// Inyecta req.user con el payload verificado. 401 si falta o es inválido.
 export function requireAuth(handler) {
   return async (req, res) => {
     const header = req.headers.authorization || req.headers.Authorization;
@@ -90,16 +91,13 @@ export function requireAuth(handler) {
       return res.status(401).json({ error: 'Token requerido' });
     }
     try {
-      const admin = getAdminClient();
-      const { data, error } = await admin.auth.getUser(token);
-      if (error || !data?.user) {
-        return res.status(401).json({ error: 'Token inválido' });
-      }
-      req.user = data.user;
+      const payload = await verifySupabaseJwt(token);
+      req.user = { id: payload.sub, email: payload.email, role: payload.role, ...payload };
       return handler(req, res);
     } catch (err) {
-      console.error('requireAuth error:', err);
-      return res.status(500).json({ error: 'Auth check failed' });
+      // Cualquier fallo (firma, exp, JWKS down) → 401. Logueamos para diagnóstico.
+      console.warn('requireAuth rechazado:', err.message);
+      return res.status(401).json({ error: 'Token inválido' });
     }
   };
 }
