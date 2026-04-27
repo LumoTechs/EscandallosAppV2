@@ -386,7 +386,11 @@ export default function Dashboard() {
 
             {/* Métricas */}
             <View style={{ flexDirection: "row", gap: 12, marginBottom: 16 }}>
-              <View style={{ flex: 1, backgroundColor: T.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: T.line }}>
+              <TouchableOpacity
+                activeOpacity={0.75}
+                onPress={() => router.push("/(tabs)/alerts")}
+                style={{ flex: 1, backgroundColor: T.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: T.line }}
+              >
                 <Text style={{ fontSize: 10, fontWeight: "600", color: T.muted, letterSpacing: 1.2, textTransform: "uppercase" }}>
                   En riesgo
                 </Text>
@@ -403,8 +407,12 @@ export default function Dashboard() {
                     }}
                   />
                 </View>
-              </View>
-              <View style={{ flex: 1, backgroundColor: T.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: T.line }}>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.75}
+                onPress={() => router.push("/(tabs)/recipes")}
+                style={{ flex: 1, backgroundColor: T.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: T.line }}
+              >
                 <Text style={{ fontSize: 10, fontWeight: "600", color: T.muted, letterSpacing: 1.2, textTransform: "uppercase" }}>
                   Escandallos
                 </Text>
@@ -415,7 +423,7 @@ export default function Dashboard() {
                   <ChefHat size={11} color={T.ok} strokeWidth={2} />
                   <Text style={{ fontSize: 10, color: T.ok, fontWeight: "600" }}>Activos</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             </View>
 
             {/* Compras por proveedor */}

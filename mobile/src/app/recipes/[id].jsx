@@ -235,35 +235,28 @@ export default function RecipeDetail() {
       allowsEditing: true,
       aspect: [4, 3],
       quality: 0.8,
+      base64: true,
     });
     if (result.canceled) return;
     const asset = result.assets[0];
     setUploading(true);
     try {
-      const response = await fetch(asset.uri);
-      const blob = await response.blob();
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        try {
-          const res = await apiFetch(`/api/recipes/${id}/upload-image`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              base64Image: reader.result,
-              mimeType: asset.mimeType || "image/jpeg",
-            }),
-          });
-          const data = await res.json();
-          if (data.image_url) {
-            setRecipe((prev) => ({ ...prev, image_url: data.image_url }));
-          }
-        } finally {
-          setUploading(false);
-        }
-      };
-      reader.onerror = () => setUploading(false);
-      reader.readAsDataURL(blob);
-    } catch {
+      const mimeType = asset.mimeType || "image/jpeg";
+      const base64Image = asset.base64
+        ? `data:${mimeType};base64,${asset.base64}`
+        : asset.uri;
+      const res = await apiFetch(`/api/recipes/${id}/upload-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base64Image, mimeType }),
+      });
+      const data = await res.json();
+      if (data.image_url) {
+        setRecipe((prev) => ({ ...prev, image_url: data.image_url }));
+      }
+    } catch (e) {
+      console.error("Upload error:", e);
+    } finally {
       setUploading(false);
     }
   };
