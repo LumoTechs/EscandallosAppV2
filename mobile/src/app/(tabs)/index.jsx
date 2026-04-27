@@ -184,7 +184,7 @@ export default function Dashboard() {
   const topCols = winWidth >= 1100 ? 4 : winWidth >= 760 ? 3 : 2;
   const [alerts, setAlerts] = useState([]);
   const [recipes, setRecipes] = useState([]);
-  const [purchasesData, setPurchasesData] = useState([]);
+  const [suppliersData, setSuppliersData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -194,23 +194,22 @@ export default function Dashboard() {
 
   const loadDashboardData = async () => {
     try {
-      const [alertsRes, recipesRes] = await Promise.all([
+      const [alertsRes, recipesRes, suppliersRes] = await Promise.all([
         apiFetch("/api/alerts/list?unread_only=true"),
         apiFetch("/api/recipes/list"),
+        apiFetch("/api/invoices/by-supplier?limit=6"),
       ]);
       const alertsData = await alertsRes.json();
       const recipesData = await recipesRes.json();
+      const suppliersJson = await suppliersRes.json();
       setAlerts(alertsData.alerts || []);
       setRecipes(recipesData.recipes || []);
-
-      // Demo mientras no tengas API de compras mensuales; sustituye por endpoint real
-      setPurchasesData([
-        { label: "Dic", value: 1850 },
-        { label: "Ene", value: 2100 },
-        { label: "Feb", value: 1980 },
-        { label: "Mar", value: 2350 },
-        { label: "Abr", value: 1108 },
-      ]);
+      setSuppliersData(
+        (suppliersJson.suppliers || []).map((s) => ({
+          label: s.supplier.length > 8 ? s.supplier.slice(0, 7) + "…" : s.supplier,
+          value: s.total,
+        }))
+      );
     } catch (error) {
       console.error("Error loading dashboard:", error);
     } finally {
@@ -377,16 +376,16 @@ export default function Dashboard() {
               </View>
             </View>
 
-            {/* Compras por mes */}
-            {purchasesData.length > 0 && (
+            {/* Compras por proveedor */}
+            {suppliersData.length > 0 && (
               <View style={{ backgroundColor: T.surface, borderRadius: 16, borderWidth: 1, borderColor: T.line, padding: 20, marginBottom: 16 }}>
                 <Text style={{ fontSize: 18, fontFamily: T.serif, color: T.ink, letterSpacing: -0.3 }}>
-                  Compras por mes
+                  Compras por proveedor
                 </Text>
                 <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 2, marginBottom: 12 }}>
-                  Últimos 5 meses — €
+                  Total acumulado — €
                 </Text>
-                <BarChart data={purchasesData} color={T.primary} width={300} height={100} />
+                <BarChart data={suppliersData} color={T.primary} width={300} height={100} />
               </View>
             )}
 
