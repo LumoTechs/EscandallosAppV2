@@ -226,7 +226,7 @@ export default function Dashboard() {
   const loadDashboardData = async () => {
     try {
       const [alertsRes, recipesRes, suppliersRes] = await Promise.all([
-        apiFetch("/api/alerts/list?unread_only=true"),
+        apiFetch("/api/alerts?unread_only=true"),
         apiFetch("/api/recipes/list"),
         apiFetch("/api/invoices/by-supplier?limit=6"),
       ]);

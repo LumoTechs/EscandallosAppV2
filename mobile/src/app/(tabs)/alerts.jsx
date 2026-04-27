@@ -47,7 +47,7 @@ export default function Alerts() {
 
   const loadAlerts = async () => {
     try {
-      const response = await apiFetch("/api/alerts/list");
+      const response = await apiFetch("/api/alerts");
       const data = await response.json();
       setAlerts(data.alerts || []);
     } catch (error) {
@@ -59,7 +59,7 @@ export default function Alerts() {
 
   const markAsRead = async (id) => {
     try {
-      await apiFetch("/api/alerts/mark-read", {
+      await apiFetch("/api/alerts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
@@ -74,7 +74,7 @@ export default function Alerts() {
     // Optimistic remove
     setAlerts((prev) => prev.filter((a) => a.id !== id));
     try {
-      await apiFetch("/api/alerts/delete", {
+      await apiFetch("/api/alerts", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
