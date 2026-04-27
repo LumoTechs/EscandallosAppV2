@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Alert,
+  Image,
   useWindowDimensions,
 } from "react-native";
 import { useEffect, useState, useMemo } from "react";
@@ -237,7 +238,15 @@ function RecipeCard({ r }) {
             borderColor: T.line,
           }}
         >
-          <DishArt cat={cat} name={r.name} />
+          {r.image_url ? (
+            <Image
+              source={{ uri: r.image_url }}
+              style={{ width: "100%", aspectRatio: 1.15 }}
+              resizeMode="cover"
+            />
+          ) : (
+            <DishArt cat={cat} name={r.name} />
+          )}
         </View>
       </View>
 

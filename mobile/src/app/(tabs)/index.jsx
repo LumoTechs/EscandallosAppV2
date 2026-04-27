@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Image,
   useWindowDimensions,
 } from "react-native";
 import { useEffect, useState, useMemo } from "react";
@@ -591,7 +592,15 @@ export default function Dashboard() {
                           </View>
                           <View style={{ padding: 6, paddingBottom: 0 }}>
                             <View style={{ borderRadius: 8, overflow: "hidden" }}>
-                              <MiniDishArt cat={cat} name={r.name} />
+                              {r.image_url ? (
+                                <Image
+                                  source={{ uri: r.image_url }}
+                                  style={{ width: "100%", aspectRatio: 1.3 }}
+                                  resizeMode="cover"
+                                />
+                              ) : (
+                                <MiniDishArt cat={cat} name={r.name} />
+                              )}
                             </View>
                           </View>
                           <View style={{ paddingHorizontal: 10, paddingTop: 8, paddingBottom: 10 }}>
