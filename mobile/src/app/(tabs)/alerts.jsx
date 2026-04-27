@@ -8,72 +8,37 @@ import {
 import { useEffect, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import Svg, { Path, Circle } from "react-native-svg";
-import { CheckCircle2, BellOff } from "lucide-react-native";
+import Svg, { Path, Circle, Line } from "react-native-svg";
+import { Check, Trash2 } from "lucide-react-native";
 import { T } from "../../theme";
 import { apiFetch } from "../../utils/apiFetch";
 import { useSession } from "../../utils/auth";
 
-function EmptyZen({ message }) {
+function EmptyZen() {
   return (
-    <View style={{ paddingVertical: 64, alignItems: "center" }}>
-      <Svg width={72} height={72} viewBox="0 0 72 72">
-        <Circle cx="36" cy="36" r="34" fill={T.primarySoft} />
-        <Path
-          d="M28 36 L34 42 L46 30"
-          stroke={T.primary}
-          strokeWidth="2.5"
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity="0.4"
-        />
-      </Svg>
-      <Text style={{ fontSize: 17, fontFamily: T.serif, color: T.ink, marginTop: 16 }}>
-        Todo tranquilo
-      </Text>
-      <Text style={{ fontSize: 13, color: T.inkSoft, marginTop: 4, textAlign: "center", maxWidth: 220, lineHeight: 18 }}>
-        {message}
-      </Text>
-    </View>
+    <Svg width={130} height={100} viewBox="0 0 130 100">
+      <Path
+        d="M65 25 Q 48 25, 48 45 L 48 65 L 42 72 L 88 72 L 82 65 L 82 45 Q 82 25, 65 25 Z"
+        fill={T.primarySoft}
+        stroke={T.lineStrong}
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <Circle cx="65" cy="78" r="4" fill={T.accent} />
+      <Line x1="65" y1="20" x2="65" y2="25" stroke={T.lineStrong} strokeWidth="2" strokeLinecap="round" />
+      <Circle cx="65" cy="18" r="3" fill={T.primary} />
+      <Path d="M100 32 L108 32 L100 42 L108 42" stroke={T.muted} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.6" />
+      <Path d="M112 22 L118 22 L112 28 L118 28" stroke={T.muted} strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.4" />
+    </Svg>
   );
 }
-
-function getSeverity(severity) {
-  if (severity === "high")   return { accent: T.primary, soft: T.primarySoft, label: "Crítica" };
-  if (severity === "medium") return { accent: T.warn,    soft: T.warnSoft,    label: "Media"   };
-  return                            { accent: T.info,    soft: T.infoSoft,    label: "Info"    };
-}
-
-function fmtDate(iso) {
-  const d = new Date(iso);
-  const now = new Date();
-  const diffDays = Math.floor((now - d) / 86400000);
-  if (diffDays === 0)
-    return `Hoy ${d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`;
-  if (diffDays === 1) return "Ayer";
-  if (diffDays < 7)  return `Hace ${diffDays} días`;
-  return d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
-}
-
-const FILTERS = [
-  { key: "all",    label: "Todas"    },
-  { key: "unread", label: "Sin leer" },
-  { key: "high",   label: "Críticas" },
-];
-
-const EMPTY_MESSAGES = {
-  all:    "No hay alertas registradas. Las nuevas aparecerán aquí.",
-  unread: "No tienes alertas sin leer. ¡Todo al día!",
-  high:   "No hay alertas críticas activas.",
-};
 
 export default function Alerts() {
   const insets = useSafeAreaInsets();
   const { isReady, isAuthenticated } = useSession();
-  const [alerts, setAlerts]   = useState([]);
+  const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter]   = useState("all");
+  const [filter, setFilter] = useState("all");
 
   useEffect(() => {
     if (!isReady || !isAuthenticated) return;
@@ -82,128 +47,123 @@ export default function Alerts() {
 
   const loadAlerts = async () => {
     try {
-      const res  = await apiFetch("/api/alerts/list");
-      const data = await res.json();
+      const response = await apiFetch("/api/alerts/list");
+      const data = await response.json();
       setAlerts(data.alerts || []);
-    } catch (e) {
-      console.error("Error loading alerts:", e);
+    } catch (error) {
+      console.error("Error loading alerts:", error);
     } finally {
       setLoading(false);
     }
   };
 
   const markAsRead = async (id) => {
-    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, is_read: true } : a)));
     try {
       await apiFetch("/api/alerts/mark-read", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-    } catch (e) {
-      console.error("Error marking alert as read:", e);
-      setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, is_read: false } : a)));
+      setAlerts(alerts.map((a) => (a.id === id ? { ...a, is_read: true } : a)));
+    } catch (error) {
+      console.error("Error marking alert as read:", error);
     }
   };
 
-  const markAllAsRead = async () => {
-    const unread = alerts.filter((a) => !a.is_read);
-    if (!unread.length) return;
-    setAlerts((prev) => prev.map((a) => ({ ...a, is_read: true })));
-    await Promise.all(
-      unread.map((a) =>
-        apiFetch("/api/alerts/mark-read", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: a.id }),
-        }).catch(() => {})
-      )
-    );
+  const deleteAlert = async (id) => {
+    // Optimistic remove
+    setAlerts((prev) => prev.filter((a) => a.id !== id));
+    try {
+      await apiFetch("/api/alerts/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+    } catch (error) {
+      console.error("Error deleting alert:", error);
+      // Rollback: reload from server
+      loadAlerts();
+    }
   };
 
-  const unreadCount = alerts.filter((a) => !a.is_read).length;
-
-  const counts = {
-    all:    alerts.length,
-    unread: unreadCount,
-    high:   alerts.filter((a) => a.severity === "high").length,
-  };
-
-  const filtered = alerts.filter((a) => {
-    if (filter === "unread") return !a.is_read;
-    if (filter === "high")   return a.severity === "high";
+  const filteredAlerts = alerts.filter((alert) => {
+    if (filter === "unread") return !alert.is_read;
+    if (filter === "high") return alert.severity === "high";
     return true;
   });
+
+  const getSeverityColors = (severity) => {
+    if (severity === "high")
+      return { accent: T.primary, soft: T.primarySoft, label: "Crítica" };
+    if (severity === "medium")
+      return { accent: T.warn, soft: T.warnSoft, label: "Media" };
+    return { accent: T.info, soft: T.infoSoft, label: "Info" };
+  };
+
+  const FilterChip = ({ value, label, count }) => {
+    const active = filter === value;
+    return (
+      <TouchableOpacity
+        activeOpacity={0.8}
+        style={{
+          paddingHorizontal: 14,
+          paddingVertical: 8,
+          borderRadius: 999,
+          backgroundColor: active ? T.ink : T.surface,
+          borderWidth: 1,
+          borderColor: active ? T.ink : T.line,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+        }}
+        onPress={() => setFilter(value)}
+      >
+        <Text style={{ fontSize: 13, fontWeight: "500", color: active ? "#fff" : T.ink }}>
+          {label}
+        </Text>
+        <View
+          style={{
+            backgroundColor: active ? "rgba(255,255,255,0.18)" : T.line,
+            paddingHorizontal: 6,
+            borderRadius: 999,
+            minWidth: 20,
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ fontSize: 11, fontWeight: "600", color: active ? "#fff" : T.inkSoft }}>
+            {count}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: insets.top }}>
       <StatusBar style="dark" />
 
-      {/* ── Header ── */}
-      <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 20 }}>
+      <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 16 }}>
         <Text style={{ fontSize: 11, fontWeight: "600", color: T.accent, letterSpacing: 2, textTransform: "uppercase" }}>
           Notificaciones
         </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <Text style={{ fontSize: 30, fontFamily: T.serif, color: T.ink, letterSpacing: -0.6 }}>
-              Alertas
-            </Text>
-            {unreadCount > 0 && (
-              <View style={{ backgroundColor: T.primary, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, minWidth: 24, alignItems: "center" }}>
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>{unreadCount}</Text>
-              </View>
-            )}
-          </View>
-          {unreadCount > 0 && (
-            <TouchableOpacity onPress={markAllAsRead} activeOpacity={0.7}>
-              <Text style={{ fontSize: 13, fontWeight: "600", color: T.primary }}>Leer todo</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        <Text style={{ fontSize: 13, color: T.inkSoft, marginTop: 4 }}>
+        <Text style={{ fontSize: 30, fontFamily: T.serif, color: T.ink, letterSpacing: -0.6, marginTop: 6 }}>
+          Alertas
+        </Text>
+        <Text style={{ fontSize: 14, color: T.inkSoft, marginTop: 4 }}>
           Cambios de precio y márgenes
         </Text>
       </View>
 
-      {/* ── Segmented control ── */}
-      <View style={{ paddingHorizontal: 24, marginBottom: 16 }}>
-        <View style={{ flexDirection: "row", backgroundColor: T.surface, borderRadius: 12, borderWidth: 1, borderColor: T.line, padding: 3, gap: 2 }}>
-          {FILTERS.map(({ key, label }) => {
-            const active = filter === key;
-            return (
-              <TouchableOpacity
-                key={key}
-                activeOpacity={0.8}
-                onPress={() => setFilter(key)}
-                style={{
-                  flex: 1,
-                  paddingVertical: 8,
-                  borderRadius: 9,
-                  backgroundColor: active ? T.ink : "transparent",
-                  alignItems: "center",
-                  flexDirection: "row",
-                  justifyContent: "center",
-                  gap: 5,
-                }}
-              >
-                <Text style={{ fontSize: 12, fontWeight: "600", color: active ? "#fff" : T.inkSoft }}>
-                  {label}
-                </Text>
-                {counts[key] > 0 && (
-                  <View style={{ backgroundColor: active ? "rgba(255,255,255,0.22)" : T.line, borderRadius: 999, minWidth: 18, paddingHorizontal: 5, paddingVertical: 1, alignItems: "center" }}>
-                    <Text style={{ fontSize: 10, fontWeight: "700", color: active ? "#fff" : T.inkSoft }}>
-                      {counts[key]}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 16, gap: 8 }}
+      >
+        <FilterChip value="all"    label="Todas"    count={alerts.length} />
+        <FilterChip value="unread" label="No leídas" count={alerts.filter((a) => !a.is_read).length} />
+        <FilterChip value="high"   label="Críticas"  count={alerts.filter((a) => a.severity === "high").length} />
+      </ScrollView>
 
-      {/* ── Lista ── */}
       {loading ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" color={T.primary} />
@@ -214,84 +174,127 @@ export default function Alerts() {
           contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 100 }}
           showsVerticalScrollIndicator={false}
         >
-          {filtered.length === 0 ? (
-            <EmptyZen message={EMPTY_MESSAGES[filter]} />
+          {filteredAlerts.length === 0 ? (
+            <View style={{ paddingVertical: 56, alignItems: "center" }}>
+              <EmptyZen />
+              <Text style={{ fontSize: 17, fontFamily: T.serif, color: T.ink, marginTop: 16 }}>
+                Todo tranquilo
+              </Text>
+              <Text style={{ fontSize: 13, color: T.inkSoft, marginTop: 4, textAlign: "center", maxWidth: 240, lineHeight: 18 }}>
+                No hay alertas en esta categoría. Las nuevas aparecerán aquí.
+              </Text>
+            </View>
           ) : (
-            <View style={{ gap: 8 }}>
-              {filtered.map((alert) => {
-                const c    = getSeverity(alert.severity);
-                const read = alert.is_read;
+            <View style={{ gap: 10 }}>
+              {filteredAlerts.map((alert) => {
+                const colors = getSeverityColors(alert.severity);
                 return (
-                  <TouchableOpacity
-                    key={alert.id}
-                    activeOpacity={read ? 0.95 : 0.75}
-                    onPress={() => !read && markAsRead(alert.id)}
-                    style={{
-                      flexDirection: "row",
-                      borderRadius: 14,
-                      overflow: "hidden",
-                      backgroundColor: read ? T.bg : T.surface,
-                      borderWidth: 1,
-                      borderColor: read ? T.line : c.accent + "44",
-                    }}
-                  >
-                    {/* Barra lateral de severidad */}
-                    <View style={{ width: 4, backgroundColor: read ? T.line : c.accent }} />
+                  <View key={alert.id} style={{ flexDirection: "row", gap: 10, alignItems: "stretch" }}>
 
-                    {/* Contenido */}
-                    <View style={{ flex: 1, padding: 14 }}>
-
-                      {/* Fila superior: badges + fecha */}
-                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <View style={{ backgroundColor: read ? T.line : c.soft, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 }}>
-                            <Text style={{ fontSize: 9, fontWeight: "800", color: read ? T.muted : c.accent, letterSpacing: 1.2, textTransform: "uppercase" }}>
-                              {c.label}
+                    {/* Tarjeta de alerta */}
+                    <TouchableOpacity
+                      activeOpacity={alert.is_read ? 1 : 0.78}
+                      onPress={() => !alert.is_read && markAsRead(alert.id)}
+                      style={{
+                        flex: 1,
+                        backgroundColor: T.surface,
+                        borderWidth: 1,
+                        borderColor: T.line,
+                        borderRadius: 14,
+                        overflow: "hidden",
+                        opacity: alert.is_read ? 0.75 : 1,
+                      }}
+                    >
+                      {/* Banda tipo */}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          paddingHorizontal: 14,
+                          paddingVertical: 8,
+                          backgroundColor: colors.soft,
+                          borderBottomWidth: 2,
+                          borderBottomColor: colors.accent,
+                        }}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent }} />
+                          <Text style={{ fontSize: 10, fontWeight: "800", color: colors.accent, letterSpacing: 1.4, textTransform: "uppercase" }}>
+                            {colors.label}
+                          </Text>
+                        </View>
+                        {!alert.is_read && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent }} />
+                            <Text style={{ fontSize: 10, fontWeight: "700", color: colors.accent, letterSpacing: 0.8 }}>
+                              NUEVA
                             </Text>
                           </View>
-                          {!read && (
-                            <View style={{ backgroundColor: c.accent, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2 }}>
-                              <Text style={{ fontSize: 9, fontWeight: "800", color: "#fff", letterSpacing: 0.8 }}>
-                                NUEVA
+                        )}
+                      </View>
+
+                      <View style={{ padding: 16 }}>
+                        <Text style={{ fontSize: 14, color: T.ink, lineHeight: 20, fontWeight: alert.is_read ? "400" : "500" }}>
+                          {alert.message}
+                        </Text>
+
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10, marginTop: 10 }}>
+                          <Text style={{ fontSize: 11, color: T.muted }}>
+                            {new Date(alert.created_at).toLocaleDateString("es-ES", {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </Text>
+                          {alert.product_name && (
+                            <>
+                              <View style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: T.muted }} />
+                              <Text style={{ fontSize: 11, color: T.inkSoft, fontWeight: "500" }}>
+                                {alert.product_name}
                               </Text>
-                            </View>
+                            </>
                           )}
                         </View>
-                        <Text style={{ fontSize: 11, color: T.muted }}>
-                          {fmtDate(alert.created_at)}
-                        </Text>
-                      </View>
 
-                      {/* Mensaje */}
-                      <Text style={{ fontSize: 14, color: read ? T.inkSoft : T.ink, lineHeight: 20, fontWeight: read ? "400" : "500" }}>
-                        {alert.message}
+                        {!alert.is_read && (
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12, alignSelf: "flex-start" }}
+                            onPress={() => markAsRead(alert.id)}
+                          >
+                            <Check color={T.primary} size={14} strokeWidth={2.2} />
+                            <Text style={{ fontSize: 12, fontWeight: "600", color: T.primary }}>
+                              Marcar como leída
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* Botón eliminar */}
+                    <TouchableOpacity
+                      activeOpacity={0.75}
+                      onPress={() => deleteAlert(alert.id)}
+                      style={{
+                        width: 56,
+                        backgroundColor: T.primarySoft,
+                        borderWidth: 1,
+                        borderColor: T.primary,
+                        borderRadius: 14,
+                        justifyContent: "center",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <Trash2 size={20} color={T.primary} strokeWidth={2} />
+                      <Text style={{ fontSize: 9, fontWeight: "700", color: T.primary, letterSpacing: 0.5 }}>
+                        BORRAR
                       </Text>
+                    </TouchableOpacity>
 
-                      {/* Fila inferior: producto + indicador de estado */}
-                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
-                        {alert.product_name ? (
-                          <View style={{ backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                            <Text style={{ fontSize: 11, color: T.inkSoft, fontWeight: "500" }}>
-                              {alert.product_name}
-                            </Text>
-                          </View>
-                        ) : (
-                          <View />
-                        )}
-
-                        {read ? (
-                          <CheckCircle2 size={16} color={T.ok} strokeWidth={1.8} />
-                        ) : (
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                            <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.accent }} />
-                            <Text style={{ fontSize: 11, fontWeight: "600", color: c.accent }}>
-                              Toca para marcar leída
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                  </TouchableOpacity>
+                  </View>
                 );
               })}
             </View>
