@@ -162,23 +162,6 @@ function StatBig({ label, value, color }) {
   );
 }
 
-// Redimensiona a maxWidth px y devuelve data URI JPEG usando canvas del navegador
-function resizeForUpload(uri, maxWidth = 1200, quality = 0.82) {
-  return new Promise((resolve, reject) => {
-    const img = new window.Image();
-    img.onload = () => {
-      const scale = img.naturalWidth > maxWidth ? maxWidth / img.naturalWidth : 1;
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(img.naturalWidth * scale);
-      canvas.height = Math.round(img.naturalHeight * scale);
-      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL("image/jpeg", quality));
-    };
-    img.onerror = () => reject(new Error("No se pudo cargar la imagen"));
-    img.src = uri;
-  });
-}
-
 export default function RecipeDetail() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -252,20 +235,29 @@ export default function RecipeDetail() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 1,
+      quality: 0.5,
+      base64: true,
     });
     if (result.canceled) return;
     const asset = result.assets[0];
+    if (!asset.base64) {
+      Alert.alert("Error", "No se pudo leer la imagen.");
+      return;
+    }
     setUploading(true);
     try {
-      const base64Image = await resizeForUpload(asset.uri);
+      const mimeType = asset.mimeType || "image/jpeg";
+      const base64Image = `data:${mimeType};base64,${asset.base64}`;
       const res = await apiFetch(`/api/recipes/${id}/upload-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ base64Image, mimeType: "image/jpeg" }),
+        body: JSON.stringify({ base64Image, mimeType }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       if (data.image_url) {
         setRecipe((prev) => ({ ...prev, image_url: data.image_url }));
       }
