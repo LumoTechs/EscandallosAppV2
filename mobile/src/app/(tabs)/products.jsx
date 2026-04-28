@@ -333,8 +333,10 @@ export default function Products() {
                             </Text>
                             <View style={{ gap: 6 }}>
                               {invoices.map((inv) => (
-                                <View
+                                <TouchableOpacity
                                   key={inv.id}
+                                  activeOpacity={0.75}
+                                  onPress={() => router.push(`/invoices/${inv.id}`)}
                                   style={{
                                     flexDirection: "row",
                                     justifyContent: "space-between",
@@ -365,7 +367,7 @@ export default function Products() {
                                       €{Number(inv.total).toFixed(2)}
                                     </Text>
                                   )}
-                                </View>
+                                </TouchableOpacity>
                               ))}
                             </View>
                           </View>
