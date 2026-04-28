@@ -14,7 +14,7 @@ async function handler(req, res) {
 
     const { data: invoice, error: invError } = await supabase
       .from('invoices')
-      .select('id, invoice_number, supplier, invoice_date, status, total')
+      .select('id, invoice_number, supplier, invoice_date, status')
       .eq('id', id)
       .maybeSingle();
 
@@ -37,7 +37,9 @@ async function handler(req, res) {
       return res.status(500).json({ error: itemsError.message });
     }
 
-    return res.status(200).json({ invoice, items: items || [] });
+    const total = (items || []).reduce((s, it) => s + parseFloat(it.total_price || 0), 0);
+
+    return res.status(200).json({ invoice: { ...invoice, total }, items: items || [] });
   } catch (err) {
     console.error('Unexpected error:', err);
     return res.status(500).json({ error: err.message });
