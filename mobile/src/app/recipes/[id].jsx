@@ -14,7 +14,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import * as ImageManipulator from "expo-image-manipulator";
 import Svg, { Defs, LinearGradient, Stop, Rect, Circle } from "react-native-svg";
 import { ArrowLeft, Sparkles, Flame, AlertCircle, Camera } from "lucide-react-native";
 import { T } from "../../theme";
@@ -163,6 +162,23 @@ function StatBig({ label, value, color }) {
   );
 }
 
+// Redimensiona a maxWidth px y devuelve data URI JPEG usando canvas del navegador
+function resizeForUpload(uri, maxWidth = 1200, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const scale = img.naturalWidth > maxWidth ? maxWidth / img.naturalWidth : 1;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => reject(new Error("No se pudo cargar la imagen"));
+    img.src = uri;
+  });
+}
+
 export default function RecipeDetail() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -242,13 +258,7 @@ export default function RecipeDetail() {
     const asset = result.assets[0];
     setUploading(true);
     try {
-      // Redimensiona a 1200px y convierte a JPEG con base64 — evita superar el límite de 4.5 MB de Vercel
-      const manipulated = await ImageManipulator.manipulateAsync(
-        asset.uri,
-        [{ resize: { width: 1200 } }],
-        { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-      );
-      const base64Image = `data:image/jpeg;base64,${manipulated.base64}`;
+      const base64Image = await resizeForUpload(asset.uri);
       const res = await apiFetch(`/api/recipes/${id}/upload-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
