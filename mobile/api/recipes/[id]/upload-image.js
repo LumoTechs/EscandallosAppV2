@@ -15,6 +15,13 @@ async function handler(req, res) {
   try {
     const supabase = getAdminClient();
 
+    // Crea el bucket si no existe (idempotente)
+    await supabase.storage.createBucket('recipe-images', {
+      public: true,
+      fileSizeLimit: 5242880,
+      allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+    });
+
     const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
     const ext  = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
