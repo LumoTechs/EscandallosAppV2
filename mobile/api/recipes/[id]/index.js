@@ -1,15 +1,14 @@
 // api/recipes/[id]
-// GET → receta + ingredientes detallados (con producto, precio actual, subtotal)
+// GET  → receta + ingredientes detallados (con producto, precio actual, subtotal)
 //        + total_cost, margin, food_cost_percentage
+// POST → sube imagen del plato (base64Image en el body) al bucket recipe-images
+//        y actualiza recipes.image_url. Devuelve { image_url }.
 
 import { query } from '../../_lib/db.js';
 import { requireAuth } from '../../_lib/auth.js';
+import { getAdminClient } from '../../_lib/supabase.js';
 
-async function handler(req, res) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Método no permitido' });
-  }
-
+async function getRecipe(req, res) {
   const { id } = req.query;
   if (!id) {
     return res.status(400).json({ error: 'id requerido' });
@@ -81,6 +80,54 @@ async function handler(req, res) {
     console.error('Error fetching recipe detail:', err);
     return res.status(500).json({ error: err.message });
   }
+}
+
+async function uploadImage(req, res) {
+  const { id } = req.query;
+  const { base64Image, mimeType = 'image/jpeg' } = req.body || {};
+
+  if (!id)          return res.status(400).json({ error: 'id requerido' });
+  if (!base64Image) return res.status(400).json({ error: 'base64Image requerido' });
+
+  try {
+    const supabase = getAdminClient();
+
+    await supabase.storage.createBucket('recipe-images', {
+      public: true,
+      fileSizeLimit: 5242880,
+      allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+    });
+
+    const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    const ext  = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
+    const path = `${id}/photo.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('recipe-images')
+      .upload(path, buffer, { contentType: mimeType, upsert: true });
+
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError);
+      return res.status(500).json({ error: uploadError.message });
+    }
+
+    const { data: urlData } = supabase.storage.from('recipe-images').getPublicUrl(path);
+    const imageUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+
+    await query('UPDATE recipes SET image_url = $1 WHERE id = $2', [urlData.publicUrl, id]);
+
+    return res.status(200).json({ image_url: imageUrl });
+  } catch (err) {
+    console.error('Unexpected error uploading recipe image:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+async function handler(req, res) {
+  if (req.method === 'GET')  return getRecipe(req, res);
+  if (req.method === 'POST') return uploadImage(req, res);
+  return res.status(405).json({ error: 'Método no permitido' });
 }
 
 export default requireAuth(handler);

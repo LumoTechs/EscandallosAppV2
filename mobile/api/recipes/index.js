@@ -1,12 +1,54 @@
-// api/recipes/create.js
-import { pool } from '../_lib/db.js';
+import { query, pool } from '../_lib/db.js';
 import { requireAuth } from '../_lib/auth.js';
 
-async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método no permitido' });
-  }
+async function listRecipes(req, res) {
+  try {
+    const rows = await query(`
+      SELECT
+        r.id,
+        r.name,
+        r.sale_price,
+        r.category,
+        r.target_food_cost_percentage,
+        r.image_url,
+        r.created_at,
+        COALESCE(SUM(ri.quantity * p.current_price), 0) AS total_cost,
+        COUNT(ri.id) AS ingredient_count
+      FROM recipes r
+      LEFT JOIN recipe_ingredients ri ON ri.recipe_id = r.id
+      LEFT JOIN products p ON p.id = ri.product_id
+      GROUP BY r.id, r.name, r.sale_price, r.category,
+               r.target_food_cost_percentage, r.image_url, r.created_at
+      ORDER BY r.created_at DESC
+    `);
 
+    const enriched = rows.map((r) => {
+      const salePrice = parseFloat(r.sale_price || 0);
+      const totalCost = parseFloat(r.total_cost || 0);
+      const actualFoodCost = salePrice > 0 ? (totalCost / salePrice) * 100 : 0;
+
+      return {
+        id: r.id,
+        name: r.name,
+        sale_price: r.sale_price,
+        category: r.category || null,
+        target_food_cost_percentage: r.target_food_cost_percentage,
+        actual_food_cost_percentage: actualFoodCost.toFixed(2),
+        total_cost: totalCost.toFixed(2),
+        ingredient_count: Number(r.ingredient_count) || 0,
+        image_url: r.image_url || null,
+        created_at: r.created_at,
+      };
+    });
+
+    return res.status(200).json({ recipes: enriched });
+  } catch (err) {
+    console.error('Error fetching recipes:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+async function createRecipe(req, res) {
   try {
     const { name, sale_price, category, ingredients, target_food_cost_percentage } = req.body || {};
 
@@ -31,7 +73,6 @@ async function handler(req, res) {
       targetPct = n;
     }
 
-    // Validar cada ingrediente antes de tocar la BD
     const cleanIngredients = [];
     for (let i = 0; i < ingredients.length; i++) {
       const ing = ingredients[i];
@@ -79,11 +120,9 @@ async function handler(req, res) {
       return res.status(200).json({ success: true, recipe_id: recipeId });
     } catch (txErr) {
       await client.query('ROLLBACK');
-      // 23503 = foreign_key_violation: product_id no existe o uuid mal formado.
       if (txErr.code === '23503') {
         return res.status(400).json({ error: 'Algún product_id no existe' });
       }
-      // 22P02 = invalid_text_representation: típico cuando un product_id no es un UUID válido.
       if (txErr.code === '22P02') {
         return res.status(400).json({ error: 'product_id con formato inválido' });
       }
@@ -96,6 +135,12 @@ async function handler(req, res) {
     console.error('Unexpected error:', err);
     return res.status(500).json({ error: err.message });
   }
+}
+
+async function handler(req, res) {
+  if (req.method === 'GET')  return listRecipes(req, res);
+  if (req.method === 'POST') return createRecipe(req, res);
+  return res.status(405).json({ error: 'Método no permitido' });
 }
 
 export default requireAuth(handler);

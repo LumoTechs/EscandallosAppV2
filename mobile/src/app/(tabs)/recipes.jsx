@@ -355,7 +355,7 @@ export default function Recipes() {
   const loadData = async () => {
     try {
       const [recipesRes, productsRes] = await Promise.all([
-        apiFetch("/api/recipes/list"),
+        apiFetch("/api/recipes"),
         apiFetch("/api/products/list"),
       ]);
       const rd = await recipesRes.json();
@@ -431,7 +431,7 @@ export default function Recipes() {
     if (!newName || !newSalePrice || newIngredients.length === 0) return;
     setSaving(true);
     try {
-      const res = await apiFetch("/api/recipes/create", {
+      const res = await apiFetch("/api/recipes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

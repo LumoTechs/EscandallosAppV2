@@ -248,7 +248,7 @@ export default function RecipeDetail() {
     try {
       const mimeType = asset.mimeType || "image/jpeg";
       const base64Image = `data:${mimeType};base64,${asset.base64}`;
-      const res = await apiFetch(`/api/recipes/${id}/upload-image`, {
+      const res = await apiFetch(`/api/recipes/${id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ base64Image, mimeType }),
