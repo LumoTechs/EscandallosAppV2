@@ -10,7 +10,7 @@ import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as ImagePicker from "expo-image-picker";
-import { Camera, FileText, Check, AlertCircle } from "lucide-react-native";
+import { Camera, FileText, Check, AlertCircle, X, Plus } from "lucide-react-native";
 import Svg, { Path, Rect, Circle, Line } from "react-native-svg";
 import { T } from "../../theme";
 import { apiFetch } from "../../utils/apiFetch";
@@ -37,67 +37,68 @@ export default function UploadInvoice() {
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const [selectedImage, setSelectedImage] = useState(null);
+  // Cada imagen: { uri, base64, mimeType }
+  const [images, setImages] = useState([]);
 
-  const pickImage = async () => {
+  const addFromGallery = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
-      quality: 0.8,
+      mediaTypes: "images",
+      allowsMultipleSelection: true,
+      quality: 0.6,
+      base64: true,
     });
-    if (!res.canceled) processImage(res.assets[0]);
+    if (res.canceled) return;
+    const newImages = res.assets
+      .filter((a) => a.base64)
+      .map((a) => ({ uri: a.uri, base64: a.base64, mimeType: a.mimeType || "image/jpeg" }));
+    setImages((prev) => [...prev, ...newImages]);
+    setError(null);
   };
 
-  const takePhoto = async () => {
-    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permissionResult.granted) {
+  const addFromCamera = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
       setError("Se necesita permiso para usar la cámara");
       return;
     }
     const res = await ImagePicker.launchCameraAsync({
       allowsEditing: false,
-      quality: 0.8,
+      quality: 0.6,
+      base64: true,
     });
-    if (!res.canceled) processImage(res.assets[0]);
+    if (res.canceled) return;
+    const asset = res.assets[0];
+    if (!asset.base64) { setError("No se pudo leer la imagen"); return; }
+    setImages((prev) => [...prev, { uri: asset.uri, base64: asset.base64, mimeType: asset.mimeType || "image/jpeg" }]);
+    setError(null);
   };
 
-  const processImage = async (image) => {
+  const removeImage = (idx) => {
+    setImages((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const processImages = async () => {
+    if (images.length === 0) return;
     setError(null);
     setResult(null);
-    setSelectedImage(image.uri);
     setProcessing(true);
-
     try {
-      const response = await fetch(image.uri);
-      const blob = await response.blob();
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = reader.result;
-        try {
-          const apiResponse = await apiFetch("/api/invoices/process", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ base64File: base64 }),
-          });
-          if (!apiResponse.ok)
-            throw new Error(`Error ${apiResponse.status}: ${apiResponse.statusText}`);
-          const data = await apiResponse.json();
-          setResult(data);
-        } catch (err) {
-          console.error("Error processing invoice:", err);
-          setError(err.message || "Error al procesar la factura");
-        } finally {
-          setProcessing(false);
-        }
-      };
-      reader.onerror = () => {
-        setError("Error al leer el archivo");
-        setProcessing(false);
-      };
-      reader.readAsDataURL(blob);
+      const base64Files = images.map((img) => `data:${img.mimeType};base64,${img.base64}`);
+      const apiResponse = await apiFetch("/api/invoices/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base64Files }),
+      });
+      if (!apiResponse.ok) {
+        const errData = await apiResponse.json().catch(() => ({}));
+        throw new Error(errData.error || `Error ${apiResponse.status}`);
+      }
+      const data = await apiResponse.json();
+      setResult(data);
     } catch (err) {
-      console.error("Error:", err);
-      setError(err.message || "Error inesperado");
+      console.error("Error processing invoice:", err);
+      setError(err.message || "Error al procesar la factura");
+    } finally {
       setProcessing(false);
     }
   };
@@ -105,7 +106,7 @@ export default function UploadInvoice() {
   const reset = () => {
     setResult(null);
     setError(null);
-    setSelectedImage(null);
+    setImages([]);
   };
 
   return (
@@ -113,40 +114,21 @@ export default function UploadInvoice() {
       <StatusBar style="dark" />
 
       <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 20 }}>
-        <Text
-          style={{
-            fontSize: 11,
-            fontWeight: "600",
-            color: T.accent,
-            letterSpacing: 2,
-            textTransform: "uppercase",
-          }}
-        >
+        <Text style={{ fontSize: 11, fontWeight: "600", color: T.accent, letterSpacing: 2, textTransform: "uppercase" }}>
           Nueva entrada
         </Text>
-        <Text
-          style={{
-            fontSize: 30,
-            fontFamily: T.serif,
-            color: T.ink,
-            letterSpacing: -0.6,
-            marginTop: 6,
-          }}
-        >
+        <Text style={{ fontSize: 30, fontFamily: T.serif, color: T.ink, letterSpacing: -0.6, marginTop: 6 }}>
           Procesar factura
         </Text>
         <Text style={{ fontSize: 14, color: T.inkSoft, marginTop: 4 }}>
-          Fotografía o selecciona un documento
+          Añade una o varias fotos de la misma factura
         </Text>
       </View>
 
       {!result ? (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{
-            paddingHorizontal: 24,
-            paddingBottom: insets.bottom + 100,
-          }}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 100 }}
           showsVerticalScrollIndicator={false}
         >
           {processing ? (
@@ -164,59 +146,104 @@ export default function UploadInvoice() {
                 <InvoiceIllustration />
               </View>
               <ActivityIndicator size="small" color={T.primary} />
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontFamily: T.serif,
-                  color: T.ink,
-                  marginTop: 16,
-                }}
-              >
+              <Text style={{ fontSize: 16, fontFamily: T.serif, color: T.ink, marginTop: 16 }}>
                 Analizando con IA
               </Text>
               <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 4 }}>
-                Esto puede tardar unos segundos
+                {images.length > 1 ? `${images.length} imágenes · puede tardar unos segundos` : "Esto puede tardar unos segundos"}
               </Text>
             </View>
           ) : (
             <View>
-              <View style={{ alignItems: "center", paddingVertical: 12, marginBottom: 8 }}>
-                <InvoiceIllustration />
-              </View>
+              {/* Miniaturas de imágenes seleccionadas */}
+              {images.length > 0 && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 11, fontWeight: "600", color: T.muted, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10 }}>
+                    {images.length} {images.length === 1 ? "imagen seleccionada" : "imágenes seleccionadas"}
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -4 }}>
+                    <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 4 }}>
+                      {images.map((img, idx) => (
+                        <View key={idx} style={{ position: "relative" }}>
+                          <Image
+                            source={{ uri: img.uri }}
+                            style={{ width: 100, height: 120, borderRadius: 10, backgroundColor: T.surface }}
+                            resizeMode="cover"
+                          />
+                          <TouchableOpacity
+                            onPress={() => removeImage(idx)}
+                            activeOpacity={0.8}
+                            style={{
+                              position: "absolute",
+                              top: 5,
+                              right: 5,
+                              width: 22,
+                              height: 22,
+                              borderRadius: 11,
+                              backgroundColor: "rgba(0,0,0,0.55)",
+                              justifyContent: "center",
+                              alignItems: "center",
+                            }}
+                          >
+                            <X size={12} color="#fff" strokeWidth={2.5} />
+                          </TouchableOpacity>
+                          <View
+                            style={{
+                              position: "absolute",
+                              bottom: 5,
+                              left: 5,
+                              backgroundColor: "rgba(0,0,0,0.45)",
+                              borderRadius: 5,
+                              paddingHorizontal: 5,
+                              paddingVertical: 2,
+                            }}
+                          >
+                            <Text style={{ fontSize: 10, color: "#fff", fontWeight: "600" }}>{idx + 1}</Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </View>
+              )}
 
-              <View style={{ gap: 12, marginBottom: 16 }}>
+              {/* Botones de añadir */}
+              <View style={{ gap: 10, marginBottom: 16 }}>
                 <TouchableOpacity
                   activeOpacity={0.88}
                   style={{
-                    backgroundColor: T.primary,
+                    backgroundColor: images.length === 0 ? T.primary : T.surface,
+                    borderWidth: images.length === 0 ? 0 : 1,
+                    borderColor: T.line,
                     borderRadius: 16,
-                    padding: 20,
+                    padding: 18,
                     flexDirection: "row",
                     alignItems: "center",
-                    gap: 16,
+                    gap: 14,
                   }}
-                  onPress={takePhoto}
+                  onPress={addFromCamera}
                 >
                   <View
                     style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 12,
-                      backgroundColor: "rgba(255,255,255,0.18)",
+                      width: 40,
+                      height: 40,
+                      borderRadius: 10,
+                      backgroundColor: images.length === 0 ? "rgba(255,255,255,0.18)" : T.accentSoft,
                       justifyContent: "center",
                       alignItems: "center",
                     }}
                   >
-                    <Camera color="#fff" size={22} strokeWidth={1.8} />
+                    <Camera color={images.length === 0 ? "#fff" : T.primary} size={20} strokeWidth={1.8} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: "600", color: "#fff" }}>
-                      Tomar foto
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: images.length === 0 ? "#fff" : T.ink }}>
+                      {images.length === 0 ? "Tomar foto" : "Añadir otra foto"}
                     </Text>
-                    <Text style={{ fontSize: 12, color: T.accentSoft, marginTop: 2 }}>
+                    <Text style={{ fontSize: 12, color: images.length === 0 ? T.accentSoft : T.inkSoft, marginTop: 1 }}>
                       Usa la cámara del dispositivo
                     </Text>
                   </View>
+                  {images.length > 0 && <Plus size={18} color={T.muted} strokeWidth={2} />}
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -226,51 +253,59 @@ export default function UploadInvoice() {
                     borderWidth: 1,
                     borderColor: T.line,
                     borderRadius: 16,
-                    padding: 20,
+                    padding: 18,
                     flexDirection: "row",
                     alignItems: "center",
-                    gap: 16,
+                    gap: 14,
                   }}
-                  onPress={pickImage}
+                  onPress={addFromGallery}
                 >
                   <View
                     style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 12,
+                      width: 40,
+                      height: 40,
+                      borderRadius: 10,
                       backgroundColor: T.accentSoft,
                       justifyContent: "center",
                       alignItems: "center",
                     }}
                   >
-                    <FileText color={T.primary} size={22} strokeWidth={1.8} />
+                    <FileText color={T.primary} size={20} strokeWidth={1.8} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: "600", color: T.ink }}>
-                      Seleccionar de galería
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: T.ink }}>
+                      {images.length === 0 ? "Seleccionar de galería" : "Añadir de galería"}
                     </Text>
-                    <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 2 }}>
-                      Escoge una imagen existente
+                    <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 1 }}>
+                      Selección múltiple permitida
                     </Text>
                   </View>
+                  {images.length > 0 && <Plus size={18} color={T.muted} strokeWidth={2} />}
                 </TouchableOpacity>
               </View>
 
-              {selectedImage && !processing && (
-                <View
+              {/* Botón procesar */}
+              {images.length > 0 && (
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  onPress={processImages}
                   style={{
-                    backgroundColor: T.surface,
+                    backgroundColor: T.primary,
                     borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: T.line,
-                    padding: 8,
+                    padding: 18,
+                    alignItems: "center",
+                    marginBottom: 16,
                   }}
                 >
-                  <Image
-                    source={{ uri: selectedImage }}
-                    style={{ width: "100%", height: 200, borderRadius: 10 }}
-                    resizeMode="cover"
-                  />
+                  <Text style={{ fontSize: 16, fontWeight: "600", color: "#fff" }}>
+                    Procesar {images.length === 1 ? "1 imagen" : `${images.length} imágenes`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {!images.length && (
+                <View style={{ alignItems: "center", paddingVertical: 16 }}>
+                  <InvoiceIllustration />
                 </View>
               )}
 
@@ -282,7 +317,7 @@ export default function UploadInvoice() {
                     borderLeftColor: T.primary,
                     borderRadius: 10,
                     padding: 14,
-                    marginTop: 16,
+                    marginTop: 8,
                     flexDirection: "row",
                     gap: 10,
                   }}
@@ -297,10 +332,7 @@ export default function UploadInvoice() {
       ) : (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{
-            paddingHorizontal: 24,
-            paddingBottom: insets.bottom + 100,
-          }}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 100 }}
           showsVerticalScrollIndicator={false}
         >
           <View
@@ -381,9 +413,7 @@ export default function UploadInvoice() {
                   }}
                 >
                   <Text style={{ fontSize: 12, color: T.inkSoft }}>{row.label}</Text>
-                  <Text style={{ fontSize: 14, color: T.ink, fontWeight: "500" }}>
-                    {row.value}
-                  </Text>
+                  <Text style={{ fontSize: 14, color: T.ink, fontWeight: "500" }}>{row.value}</Text>
                 </View>
               ))}
             </View>
@@ -399,15 +429,7 @@ export default function UploadInvoice() {
               marginBottom: 14,
             }}
           >
-            <Text
-              style={{
-                fontSize: 18,
-                fontFamily: T.serif,
-                color: T.ink,
-                marginBottom: 14,
-                letterSpacing: -0.3,
-              }}
-            >
+            <Text style={{ fontSize: 18, fontFamily: T.serif, color: T.ink, marginBottom: 14, letterSpacing: -0.3 }}>
               Productos
             </Text>
             <View>
@@ -423,16 +445,9 @@ export default function UploadInvoice() {
                   <Text style={{ fontSize: 14, fontWeight: "500", color: T.ink }}>
                     {item.product_name}
                   </Text>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      marginTop: 6,
-                    }}
-                  >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
                     <Text style={{ fontSize: 12, color: T.inkSoft }}>
-                      {parseFloat(item.quantity).toFixed(2)} × €
-                      {parseFloat(item.unit_price).toFixed(2)}
+                      {parseFloat(item.quantity).toFixed(2)} × €{parseFloat(item.unit_price).toFixed(2)}
                     </Text>
                     <Text style={{ fontSize: 14, fontWeight: "600", color: T.primary }}>
                       €{parseFloat(item.total_amount).toFixed(2)}
@@ -454,16 +469,11 @@ export default function UploadInvoice() {
             >
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <AlertCircle color={T.primary} size={16} strokeWidth={2} />
-                <Text style={{ fontSize: 14, fontWeight: "600", color: T.ink }}>
-                  Alertas generadas
-                </Text>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: T.ink }}>Alertas generadas</Text>
               </View>
               <View style={{ gap: 10 }}>
                 {result.alerts.map((alert) => (
-                  <View
-                    key={alert.id}
-                    style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}
-                  >
+                  <View key={alert.id} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
                     <View
                       style={{
                         width: 4,
@@ -473,9 +483,7 @@ export default function UploadInvoice() {
                         marginTop: 6,
                       }}
                     />
-                    <Text style={{ flex: 1, fontSize: 13, color: T.ink, lineHeight: 18 }}>
-                      {alert.message}
-                    </Text>
+                    <Text style={{ flex: 1, fontSize: 13, color: T.ink, lineHeight: 18 }}>{alert.message}</Text>
                   </View>
                 ))}
               </View>
@@ -484,17 +492,10 @@ export default function UploadInvoice() {
 
           <TouchableOpacity
             activeOpacity={0.88}
-            style={{
-              backgroundColor: T.primary,
-              borderRadius: 14,
-              padding: 18,
-              alignItems: "center",
-            }}
+            style={{ backgroundColor: T.primary, borderRadius: 14, padding: 18, alignItems: "center" }}
             onPress={reset}
           >
-            <Text style={{ fontSize: 15, fontWeight: "600", color: "#fff" }}>
-              Procesar otra factura
-            </Text>
+            <Text style={{ fontSize: 15, fontWeight: "600", color: "#fff" }}>Procesar otra factura</Text>
           </TouchableOpacity>
         </ScrollView>
       )}

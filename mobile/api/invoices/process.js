@@ -61,7 +61,7 @@ Todos los números como decimales (no strings). Sé extremadamente preciso con l
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '10mb',
+      sizeLimit: '20mb',
     },
   },
 };
@@ -102,21 +102,35 @@ async function handler(req, res) {
   }
 
   try {
-    const { base64File } = req.body || {};
+    const { base64File, base64Files } = req.body || {};
 
-    if (!base64File) {
-      return res.status(400).json({ error: 'base64File requerido' });
+    // Normalizar: aceptar array (base64Files) o único (base64File, retrocompat)
+    const files = Array.isArray(base64Files) && base64Files.length > 0
+      ? base64Files
+      : base64File
+        ? [base64File]
+        : null;
+
+    if (!files) {
+      return res.status(400).json({ error: 'base64Files requerido' });
     }
 
-    const match = base64File.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) {
-      return res.status(400).json({ error: 'Formato base64 inválido' });
+    // Construir bloques de contenido: una entrada por imagen/documento + el prompt al final
+    const contentBlocks = [];
+    for (const file of files) {
+      const match = file.match(/^data:([^;]+);base64,(.+)$/);
+      if (!match) {
+        return res.status(400).json({ error: 'Formato base64 inválido en una de las imágenes' });
+      }
+      const mediaType = match[1];
+      const base64Data = match[2];
+      const isPdf = mediaType === 'application/pdf';
+      contentBlocks.push({
+        type: isPdf ? 'document' : 'image',
+        source: { type: 'base64', media_type: mediaType, data: base64Data },
+      });
     }
-    const mediaType = match[1];
-    const base64Data = match[2];
-
-    const isPdf = mediaType === 'application/pdf';
-    const sourceType = isPdf ? 'document' : 'image';
+    contentBlocks.push({ type: 'text', text: EXTRACTION_PROMPT });
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
@@ -138,21 +152,11 @@ async function handler(req, res) {
           messages: [
             {
               role: 'user',
-              content: [
-                {
-                  type: sourceType,
-                  source: {
-                    type: 'base64',
-                    media_type: mediaType,
-                    data: base64Data,
-                  },
-                },
-                { type: 'text', text: EXTRACTION_PROMPT },
-              ],
+              content: contentBlocks,
             },
           ],
         }),
-        signal: AbortSignal.timeout(45000),
+        signal: AbortSignal.timeout(60000),
       });
     } catch (fetchErr) {
       if (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError') {
