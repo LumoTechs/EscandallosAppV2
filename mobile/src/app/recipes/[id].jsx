@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Image,
+  Alert,
   useWindowDimensions,
 } from "react-native";
 import { useEffect, useState } from "react";
@@ -13,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import Svg, { Defs, LinearGradient, Stop, Rect, Circle } from "react-native-svg";
 import { ArrowLeft, Sparkles, Flame, AlertCircle, Camera } from "lucide-react-native";
 import { T } from "../../theme";
@@ -234,28 +236,32 @@ export default function RecipeDetail() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 0.8,
-      base64: true,
+      quality: 1,
     });
     if (result.canceled) return;
     const asset = result.assets[0];
     setUploading(true);
     try {
-      const mimeType = asset.mimeType || "image/jpeg";
-      const base64Image = asset.base64
-        ? `data:${mimeType};base64,${asset.base64}`
-        : asset.uri;
+      // Redimensiona a 1200px y convierte a JPEG con base64 — evita superar el límite de 4.5 MB de Vercel
+      const manipulated = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 1200 } }],
+        { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      );
+      const base64Image = `data:image/jpeg;base64,${manipulated.base64}`;
       const res = await apiFetch(`/api/recipes/${id}/upload-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ base64Image, mimeType }),
+        body: JSON.stringify({ base64Image, mimeType: "image/jpeg" }),
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       if (data.image_url) {
         setRecipe((prev) => ({ ...prev, image_url: data.image_url }));
       }
     } catch (e) {
       console.error("Upload error:", e);
+      Alert.alert("Error", "No se pudo subir la imagen. Inténtalo de nuevo.");
     } finally {
       setUploading(false);
     }
