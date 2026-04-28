@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import Svg, { Path, Circle, Line } from "react-native-svg";
-import { Check } from "lucide-react-native";
+import { Check, Trash2 } from "lucide-react-native";
 import { T } from "../../theme";
 import { apiFetch } from "../../utils/apiFetch";
 import { useSession } from "../../utils/auth";
@@ -47,7 +47,7 @@ export default function Alerts() {
 
   const loadAlerts = async () => {
     try {
-      const response = await apiFetch("/api/alerts/list");
+      const response = await apiFetch("/api/alerts");
       const data = await response.json();
       setAlerts(data.alerts || []);
     } catch (error) {
@@ -59,7 +59,7 @@ export default function Alerts() {
 
   const markAsRead = async (id) => {
     try {
-      await apiFetch("/api/alerts/mark-read", {
+      await apiFetch("/api/alerts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
@@ -67,6 +67,22 @@ export default function Alerts() {
       setAlerts(alerts.map((a) => (a.id === id ? { ...a, is_read: true } : a)));
     } catch (error) {
       console.error("Error marking alert as read:", error);
+    }
+  };
+
+  const deleteAlert = async (id) => {
+    // Optimistic remove
+    setAlerts((prev) => prev.filter((a) => a.id !== id));
+    try {
+      await apiFetch("/api/alerts", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+    } catch (error) {
+      console.error("Error deleting alert:", error);
+      // Rollback: reload from server
+      loadAlerts();
     }
   };
 
@@ -102,13 +118,7 @@ export default function Alerts() {
         }}
         onPress={() => setFilter(value)}
       >
-        <Text
-          style={{
-            fontSize: 13,
-            fontWeight: "500",
-            color: active ? "#fff" : T.ink,
-          }}
-        >
+        <Text style={{ fontSize: 13, fontWeight: "500", color: active ? "#fff" : T.ink }}>
           {label}
         </Text>
         <View
@@ -120,13 +130,7 @@ export default function Alerts() {
             alignItems: "center",
           }}
         >
-          <Text
-            style={{
-              fontSize: 11,
-              fontWeight: "600",
-              color: active ? "#fff" : T.inkSoft,
-            }}
-          >
+          <Text style={{ fontSize: 11, fontWeight: "600", color: active ? "#fff" : T.inkSoft }}>
             {count}
           </Text>
         </View>
@@ -139,26 +143,10 @@ export default function Alerts() {
       <StatusBar style="dark" />
 
       <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 16 }}>
-        <Text
-          style={{
-            fontSize: 11,
-            fontWeight: "600",
-            color: T.accent,
-            letterSpacing: 2,
-            textTransform: "uppercase",
-          }}
-        >
+        <Text style={{ fontSize: 11, fontWeight: "600", color: T.accent, letterSpacing: 2, textTransform: "uppercase" }}>
           Notificaciones
         </Text>
-        <Text
-          style={{
-            fontSize: 30,
-            fontFamily: T.serif,
-            color: T.ink,
-            letterSpacing: -0.6,
-            marginTop: 6,
-          }}
-        >
+        <Text style={{ fontSize: 30, fontFamily: T.serif, color: T.ink, letterSpacing: -0.6, marginTop: 6 }}>
           Alertas
         </Text>
         <Text style={{ fontSize: 14, color: T.inkSoft, marginTop: 4 }}>
@@ -169,23 +157,11 @@ export default function Alerts() {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingHorizontal: 24,
-          paddingBottom: 16,
-          gap: 8,
-        }}
+        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 16, gap: 8 }}
       >
-        <FilterChip value="all" label="Todas" count={alerts.length} />
-        <FilterChip
-          value="unread"
-          label="No leídas"
-          count={alerts.filter((a) => !a.is_read).length}
-        />
-        <FilterChip
-          value="high"
-          label="Críticas"
-          count={alerts.filter((a) => a.severity === "high").length}
-        />
+        <FilterChip value="all"    label="Todas"    count={alerts.length} />
+        <FilterChip value="unread" label="No leídas" count={alerts.filter((a) => !a.is_read).length} />
+        <FilterChip value="high"   label="Críticas"  count={alerts.filter((a) => a.severity === "high").length} />
       </ScrollView>
 
       {loading ? (
@@ -195,35 +171,16 @@ export default function Alerts() {
       ) : (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{
-            paddingHorizontal: 24,
-            paddingBottom: insets.bottom + 100,
-          }}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 100 }}
           showsVerticalScrollIndicator={false}
         >
           {filteredAlerts.length === 0 ? (
             <View style={{ paddingVertical: 56, alignItems: "center" }}>
               <EmptyZen />
-              <Text
-                style={{
-                  fontSize: 17,
-                  fontFamily: T.serif,
-                  color: T.ink,
-                  marginTop: 16,
-                }}
-              >
+              <Text style={{ fontSize: 17, fontFamily: T.serif, color: T.ink, marginTop: 16 }}>
                 Todo tranquilo
               </Text>
-              <Text
-                style={{
-                  fontSize: 13,
-                  color: T.inkSoft,
-                  marginTop: 4,
-                  textAlign: "center",
-                  maxWidth: 240,
-                  lineHeight: 18,
-                }}
-              >
+              <Text style={{ fontSize: 13, color: T.inkSoft, marginTop: 4, textAlign: "center", maxWidth: 240, lineHeight: 18 }}>
                 No hay alertas en esta categoría. Las nuevas aparecerán aquí.
               </Text>
             </View>
@@ -232,8 +189,10 @@ export default function Alerts() {
               {filteredAlerts.map((alert) => {
                 const colors = getSeverityColors(alert.severity);
                 return (
-                  <View
+                  <TouchableOpacity
                     key={alert.id}
+                    activeOpacity={alert.is_read ? 1 : 0.78}
+                    onPress={() => !alert.is_read && markAsRead(alert.id)}
                     style={{
                       backgroundColor: T.surface,
                       borderWidth: 1,
@@ -243,135 +202,82 @@ export default function Alerts() {
                       opacity: alert.is_read ? 0.75 : 1,
                     }}
                   >
-                    {/* Banda tipo */}
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        paddingHorizontal: 14,
-                        paddingVertical: 8,
-                        backgroundColor: colors.soft,
-                        borderBottomWidth: 2,
-                        borderBottomColor: colors.accent,
-                      }}
-                    >
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent }} />
-                        <Text
-                          style={{
-                            fontSize: 10,
-                            fontWeight: "800",
-                            color: colors.accent,
-                            letterSpacing: 1.4,
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          {colors.label}
-                        </Text>
-                      </View>
-                      {!alert.is_read && (
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 5,
-                          }}
-                        >
-                          <View
-                            style={{
-                              width: 6,
-                              height: 6,
-                              borderRadius: 3,
-                              backgroundColor: colors.accent,
-                            }}
-                          />
-                          <Text style={{ fontSize: 10, fontWeight: "700", color: colors.accent, letterSpacing: 0.8 }}>
-                            NUEVA
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-
-                    <View style={{ padding: 16 }}>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: T.ink,
-                          lineHeight: 20,
-                          fontWeight: alert.is_read ? "400" : "500",
-                        }}
-                      >
-                        {alert.message}
-                      </Text>
-
+                      {/* Banda tipo */}
                       <View
                         style={{
                           flexDirection: "row",
-                          flexWrap: "wrap",
                           alignItems: "center",
-                          gap: 10,
-                          marginTop: 10,
+                          justifyContent: "space-between",
+                          paddingHorizontal: 14,
+                          paddingVertical: 8,
+                          backgroundColor: colors.soft,
+                          borderBottomWidth: 2,
+                          borderBottomColor: colors.accent,
                         }}
                       >
-                        <Text style={{ fontSize: 11, color: T.muted }}>
-                          {new Date(alert.created_at).toLocaleDateString("es-ES", {
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </Text>
-
-                        {alert.product_name && (
-                          <>
-                            <View
-                              style={{
-                                width: 3,
-                                height: 3,
-                                borderRadius: 1.5,
-                                backgroundColor: T.muted,
-                              }}
-                            />
-                            <Text
-                              style={{
-                                fontSize: 11,
-                                color: T.inkSoft,
-                                fontWeight: "500",
-                              }}
-                            >
-                              {alert.product_name}
-                            </Text>
-                          </>
-                        )}
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent }} />
+                          <Text style={{ fontSize: 10, fontWeight: "800", color: colors.accent, letterSpacing: 1.4, textTransform: "uppercase" }}>
+                            {colors.label}
+                          </Text>
+                        </View>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                          {!alert.is_read && (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent }} />
+                              <Text style={{ fontSize: 10, fontWeight: "700", color: colors.accent, letterSpacing: 0.8 }}>
+                                NUEVA
+                              </Text>
+                            </View>
+                          )}
+                          <TouchableOpacity
+                            onPress={() => deleteAlert(alert.id)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            activeOpacity={0.6}
+                          >
+                            <Trash2 size={14} color={colors.accent} strokeWidth={2} opacity={0.55} />
+                          </TouchableOpacity>
+                        </View>
                       </View>
 
-                      {!alert.is_read && (
-                        <TouchableOpacity
-                          activeOpacity={0.7}
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 6,
-                            marginTop: 12,
-                            alignSelf: "flex-start",
-                          }}
-                          onPress={() => markAsRead(alert.id)}
-                        >
-                          <Check color={T.primary} size={14} strokeWidth={2.2} />
-                          <Text
-                            style={{
-                              fontSize: 12,
-                              fontWeight: "600",
-                              color: T.primary,
-                            }}
-                          >
-                            Marcar como leída
+                      <View style={{ padding: 16 }}>
+                        <Text style={{ fontSize: 14, color: T.ink, lineHeight: 20, fontWeight: alert.is_read ? "400" : "500" }}>
+                          {alert.message}
+                        </Text>
+
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10, marginTop: 10 }}>
+                          <Text style={{ fontSize: 11, color: T.muted }}>
+                            {new Date(alert.created_at).toLocaleDateString("es-ES", {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
                           </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </View>
+                          {alert.product_name && (
+                            <>
+                              <View style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: T.muted }} />
+                              <Text style={{ fontSize: 11, color: T.inkSoft, fontWeight: "500" }}>
+                                {alert.product_name}
+                              </Text>
+                            </>
+                          )}
+                        </View>
+
+                        {!alert.is_read && (
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12, alignSelf: "flex-start" }}
+                            onPress={() => markAsRead(alert.id)}
+                          >
+                            <Check color={T.primary} size={14} strokeWidth={2.2} />
+                            <Text style={{ fontSize: 12, fontWeight: "600", color: T.primary }}>
+                              Marcar como leída
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>

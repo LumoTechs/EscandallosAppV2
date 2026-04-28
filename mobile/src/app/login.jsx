@@ -48,9 +48,12 @@ export default function Login() {
     try {
       await signIn(email, password);
     } catch (e) {
-      const msg = e?.message?.toLowerCase().includes("invalid")
+      const raw = e?.message || "";
+      const msg = raw.toLowerCase().includes("failed to fetch") || raw.toLowerCase().includes("networkerror")
+        ? "Error de conexión. Comprueba tu red o que la app esté bien configurada."
+        : raw.toLowerCase().includes("invalid")
         ? "Credenciales no válidas."
-        : e?.message || "No se pudo iniciar sesión.";
+        : raw || "No se pudo iniciar sesión.";
       setError(msg);
     } finally {
       setSubmitting(false);

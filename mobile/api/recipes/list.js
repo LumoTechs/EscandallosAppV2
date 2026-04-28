@@ -14,6 +14,7 @@ async function handler(req, res) {
         r.sale_price,
         r.category,
         r.target_food_cost_percentage,
+        r.image_url,
         r.created_at,
         COALESCE(SUM(ri.quantity * p.current_price), 0) AS total_cost,
         COUNT(ri.id) AS ingredient_count
@@ -21,7 +22,7 @@ async function handler(req, res) {
       LEFT JOIN recipe_ingredients ri ON ri.recipe_id = r.id
       LEFT JOIN products p ON p.id = ri.product_id
       GROUP BY r.id, r.name, r.sale_price, r.category,
-               r.target_food_cost_percentage, r.created_at
+               r.target_food_cost_percentage, r.image_url, r.created_at
       ORDER BY r.created_at DESC
     `);
 
@@ -39,6 +40,7 @@ async function handler(req, res) {
         actual_food_cost_percentage: actualFoodCost.toFixed(2),
         total_cost: totalCost.toFixed(2),
         ingredient_count: Number(r.ingredient_count) || 0,
+        image_url: r.image_url || null,
         created_at: r.created_at,
       };
     });

@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Image,
   useWindowDimensions,
 } from "react-native";
 import { useEffect, useState, useMemo } from "react";
@@ -127,18 +128,34 @@ function Sparkline({ data, color = T.primary, width = 280, height = 50 }) {
   );
 }
 
+function fmtEur(v) {
+  if (v >= 1000) return `€${(v / 1000).toFixed(1)}k`;
+  return `€${Math.round(v)}`;
+}
+
 function BarChart({ data, color = T.primary, width = 300, height = 100 }) {
   if (!data || data.length === 0) return null;
   const max = Math.max(...data.map((d) => d.value));
   const barW = (width - (data.length - 1) * 6) / data.length;
+  const VALUE_AREA = 16;
   return (
-    <Svg width={width} height={height + 20}>
+    <Svg width={width} height={VALUE_AREA + height + 20}>
       {data.map((d, i) => {
         const h = (d.value / max) * height;
         const x = i * (barW + 6);
-        const y = height - h;
+        const y = VALUE_AREA + (height - h);
         return (
           <React.Fragment key={i}>
+            <SvgText
+              x={x + barW / 2}
+              y={VALUE_AREA - 4}
+              fontSize="8"
+              fontWeight="700"
+              fill={color}
+              textAnchor="middle"
+            >
+              {fmtEur(d.value)}
+            </SvgText>
             <Rect
               x={x}
               y={y}
@@ -150,7 +167,7 @@ function BarChart({ data, color = T.primary, width = 300, height = 100 }) {
             />
             <SvgText
               x={x + barW / 2}
-              y={height + 14}
+              y={VALUE_AREA + height + 14}
               fontSize="9"
               fill={T.muted}
               textAnchor="middle"
@@ -184,37 +201,51 @@ export default function Dashboard() {
   const topCols = winWidth >= 1100 ? 4 : winWidth >= 760 ? 3 : 2;
   const [alerts, setAlerts] = useState([]);
   const [recipes, setRecipes] = useState([]);
-  const [purchasesData, setPurchasesData] = useState([]);
+  const [suppliersData, setSuppliersData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [savingsEstimate, setSavingsEstimate] = useState(null);
 
   useEffect(() => {
     if (!isReady || !isAuthenticated) return;
     loadDashboardData();
   }, [isReady, isAuthenticated]);
 
+  const loadSavingsEstimate = async () => {
+    try {
+      const res = await apiFetch("/api/dashboard/savings-estimate");
+      const data = await res.json();
+      if (typeof data.savings_eur === "number") {
+        setSavingsEstimate(data);
+      }
+    } catch (err) {
+      console.error("Error loading savings estimate:", err);
+      setSavingsEstimate({ savings_eur: 0, monthly_trend: [], summary: "Sin datos suficientes aún" });
+    }
+  };
+
   const loadDashboardData = async () => {
     try {
-      const [alertsRes, recipesRes] = await Promise.all([
-        apiFetch("/api/alerts/list?unread_only=true"),
+      const [alertsRes, recipesRes, suppliersRes] = await Promise.all([
+        apiFetch("/api/alerts?unread_only=true"),
         apiFetch("/api/recipes/list"),
+        apiFetch("/api/invoices/by-supplier?limit=6"),
       ]);
       const alertsData = await alertsRes.json();
       const recipesData = await recipesRes.json();
+      const suppliersJson = await suppliersRes.json();
       setAlerts(alertsData.alerts || []);
       setRecipes(recipesData.recipes || []);
-
-      // Demo mientras no tengas API de compras mensuales; sustituye por endpoint real
-      setPurchasesData([
-        { label: "Dic", value: 1850 },
-        { label: "Ene", value: 2100 },
-        { label: "Feb", value: 1980 },
-        { label: "Mar", value: 2350 },
-        { label: "Abr", value: 1108 },
-      ]);
+      setSuppliersData(
+        (suppliersJson.suppliers || []).map((s) => ({
+          label: s.supplier.length > 8 ? s.supplier.slice(0, 7) + "…" : s.supplier,
+          value: s.total,
+        }))
+      );
     } catch (error) {
       console.error("Error loading dashboard:", error);
     } finally {
       setLoading(false);
+      loadSavingsEstimate();
     }
   };
 
@@ -308,44 +339,58 @@ export default function Dashboard() {
           showsVerticalScrollIndicator={false}
         >
           <View style={{ paddingHorizontal: 24 }}>
-            {/* Hero */}
+            {/* Hero — Ahorro estimado por Opus */}
             <View style={{ backgroundColor: T.ink, borderRadius: 20, padding: 24, marginBottom: 16, overflow: "hidden" }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <View>
-                  <Text style={{ fontSize: 10, fontWeight: "600", color: T.accent, letterSpacing: 2, textTransform: "uppercase" }}>
-                    Food cost medio
-                  </Text>
-                  <Text style={{ fontSize: 44, fontFamily: T.serif, color: "#fff", letterSpacing: -1, marginTop: 8 }}>
-                    {avgFoodCost.toFixed(0)}
-                    <Text style={{ fontSize: 24, color: T.accent }}>%</Text>
+              {savingsEstimate === null ? (
+                <View style={{ alignItems: "center", paddingVertical: 24 }}>
+                  <ActivityIndicator size="small" color={T.accent} />
+                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 10, letterSpacing: 0.3 }}>
+                    Calculando ahorro estimado…
                   </Text>
                 </View>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 4,
-                    backgroundColor: "rgba(217,131,36,0.18)",
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 999,
-                  }}
-                >
-                  <TrendingUp color={T.accent} size={12} strokeWidth={2.2} />
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: T.accent }}>+2.1%</Text>
-                </View>
-              </View>
-              <View style={{ marginTop: 16, marginHorizontal: -4 }}>
-                <Sparkline data={costTrend} color={T.accent} width={280} height={50} />
-              </View>
-              <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 8, letterSpacing: 0.3 }}>
-                Últimos 8 días
-              </Text>
+              ) : (
+                <>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <View>
+                      <Text style={{ fontSize: 10, fontWeight: "600", color: T.accent, letterSpacing: 2, textTransform: "uppercase" }}>
+                        Ahorro estimado
+                      </Text>
+                      <Text style={{ fontSize: 44, fontFamily: T.serif, color: "#fff", letterSpacing: -1, marginTop: 8 }}>
+                        €{savingsEstimate.savings_eur.toLocaleString("es-ES")}
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
+                        backgroundColor: "rgba(217,131,36,0.18)",
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 999,
+                      }}
+                    >
+                      <Sparkles color={T.accent} size={12} strokeWidth={2.2} />
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: T.accent }}>IA</Text>
+                    </View>
+                  </View>
+                  <View style={{ marginTop: 16, marginHorizontal: -4 }}>
+                    <Sparkline data={savingsEstimate.monthly_trend} color={T.accent} width={280} height={50} />
+                  </View>
+                  <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 8, letterSpacing: 0.3 }}>
+                    {savingsEstimate.summary}
+                  </Text>
+                </>
+              )}
             </View>
 
             {/* Métricas */}
             <View style={{ flexDirection: "row", gap: 12, marginBottom: 16 }}>
-              <View style={{ flex: 1, backgroundColor: T.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: T.line }}>
+              <TouchableOpacity
+                activeOpacity={0.75}
+                onPress={() => router.push("/(tabs)/alerts")}
+                style={{ flex: 1, backgroundColor: T.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: T.line }}
+              >
                 <Text style={{ fontSize: 10, fontWeight: "600", color: T.muted, letterSpacing: 1.2, textTransform: "uppercase" }}>
                   En riesgo
                 </Text>
@@ -362,8 +407,12 @@ export default function Dashboard() {
                     }}
                   />
                 </View>
-              </View>
-              <View style={{ flex: 1, backgroundColor: T.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: T.line }}>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.75}
+                onPress={() => router.push("/(tabs)/recipes")}
+                style={{ flex: 1, backgroundColor: T.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: T.line }}
+              >
                 <Text style={{ fontSize: 10, fontWeight: "600", color: T.muted, letterSpacing: 1.2, textTransform: "uppercase" }}>
                   Escandallos
                 </Text>
@@ -374,19 +423,19 @@ export default function Dashboard() {
                   <ChefHat size={11} color={T.ok} strokeWidth={2} />
                   <Text style={{ fontSize: 10, color: T.ok, fontWeight: "600" }}>Activos</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             </View>
 
-            {/* Compras por mes */}
-            {purchasesData.length > 0 && (
+            {/* Compras por proveedor */}
+            {suppliersData.length > 0 && (
               <View style={{ backgroundColor: T.surface, borderRadius: 16, borderWidth: 1, borderColor: T.line, padding: 20, marginBottom: 16 }}>
                 <Text style={{ fontSize: 18, fontFamily: T.serif, color: T.ink, letterSpacing: -0.3 }}>
-                  Compras por mes
+                  Compras por proveedor
                 </Text>
                 <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 2, marginBottom: 12 }}>
-                  Últimos 5 meses — €
+                  Total acumulado — €
                 </Text>
-                <BarChart data={purchasesData} color={T.primary} width={300} height={100} />
+                <BarChart data={suppliersData} color={T.primary} width={300} height={100} />
               </View>
             )}
 
@@ -423,8 +472,10 @@ export default function Dashboard() {
               ) : (
                 <View style={{ gap: 10 }}>
                   {criticalAlerts.slice(0, 3).map((alert) => (
-                    <View
+                    <TouchableOpacity
                       key={alert.id}
+                      activeOpacity={0.7}
+                      onPress={() => router.push("/(tabs)/alerts")}
                       style={{
                         flexDirection: "row",
                         gap: 12,
@@ -445,7 +496,7 @@ export default function Dashboard() {
                           })}
                         </Text>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               )}
@@ -549,7 +600,15 @@ export default function Dashboard() {
                           </View>
                           <View style={{ padding: 6, paddingBottom: 0 }}>
                             <View style={{ borderRadius: 8, overflow: "hidden" }}>
-                              <MiniDishArt cat={cat} name={r.name} />
+                              {r.image_url ? (
+                                <Image
+                                  source={{ uri: r.image_url }}
+                                  style={{ width: "100%", aspectRatio: 1.3 }}
+                                  resizeMode="cover"
+                                />
+                              ) : (
+                                <MiniDishArt cat={cat} name={r.name} />
+                              )}
                             </View>
                           </View>
                           <View style={{ paddingHorizontal: 10, paddingTop: 8, paddingBottom: 10 }}>

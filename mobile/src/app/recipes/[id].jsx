@@ -5,14 +5,17 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  Image,
+  Alert,
   useWindowDimensions,
 } from "react-native";
 import { useEffect, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 import Svg, { Defs, LinearGradient, Stop, Rect, Circle } from "react-native-svg";
-import { ArrowLeft, Sparkles, Flame, AlertCircle } from "lucide-react-native";
+import { ArrowLeft, Sparkles, Flame, AlertCircle, Camera } from "lucide-react-native";
 import { T } from "../../theme";
 import { apiFetch } from "../../utils/apiFetch";
 
@@ -169,6 +172,7 @@ export default function RecipeDetail() {
   const [recipe, setRecipe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -225,6 +229,45 @@ export default function RecipeDetail() {
       </View>
     );
   }
+
+  const pickAndUpload = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.5,
+      base64: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if (!asset.base64) {
+      Alert.alert("Error", "No se pudo leer la imagen.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const mimeType = asset.mimeType || "image/jpeg";
+      const base64Image = `data:${mimeType};base64,${asset.base64}`;
+      const res = await apiFetch(`/api/recipes/${id}/upload-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base64Image, mimeType }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.image_url) {
+        setRecipe((prev) => ({ ...prev, image_url: data.image_url }));
+      }
+    } catch (e) {
+      console.error("Upload error:", e);
+      Alert.alert("Error", "No se pudo subir la imagen. Inténtalo de nuevo.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const cat = getCat(recipe.category);
   const sale = parseFloat(recipe.sale_price || 0);
@@ -320,13 +363,46 @@ export default function RecipeDetail() {
           <View style={{ padding: 14 }}>
             <View
               style={{
+                position: "relative",
                 borderRadius: 14,
                 overflow: "hidden",
                 borderWidth: 1,
                 borderColor: T.line,
               }}
             >
-              <DishArt cat={cat} name={recipe.name} height={isWide ? 280 : 200} />
+              {recipe.image_url ? (
+                <Image
+                  source={{ uri: recipe.image_url }}
+                  style={{ width: "100%", height: isWide ? 280 : 200 }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <DishArt cat={cat} name={recipe.name} height={isWide ? 280 : 200} />
+              )}
+              <TouchableOpacity
+                onPress={pickAndUpload}
+                style={{
+                  position: "absolute",
+                  bottom: 10,
+                  right: 10,
+                  backgroundColor: "rgba(0,0,0,0.55)",
+                  borderRadius: 10,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                {uploading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Camera size={14} color="#fff" />
+                )}
+                <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
+                  {uploading ? "Subiendo..." : recipe.image_url ? "Cambiar foto" : "Subir foto"}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             <Text

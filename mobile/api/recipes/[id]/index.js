@@ -17,7 +17,7 @@ async function handler(req, res) {
 
   try {
     const recipeRows = await query(
-      `SELECT id, name, sale_price, category, target_food_cost_percentage, created_at
+      `SELECT id, name, sale_price, category, target_food_cost_percentage, image_url, created_at
          FROM recipes
         WHERE id = $1`,
       [id]
@@ -61,6 +61,7 @@ async function handler(req, res) {
         sale_price: r.sale_price,
         category: r.category || null,
         target_food_cost_percentage: r.target_food_cost_percentage,
+        image_url: r.image_url || null,
         created_at: r.created_at,
         total_cost: totalCost.toFixed(2),
         margin: margin.toFixed(2),
