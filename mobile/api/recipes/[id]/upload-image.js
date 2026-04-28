@@ -1,4 +1,5 @@
 import { getAdminClient } from '../../_lib/supabase.js';
+import { query } from '../../_lib/db.js';
 import { requireAuth } from '../../_lib/auth.js';
 
 async function handler(req, res) {
@@ -40,15 +41,7 @@ async function handler(req, res) {
     // Forzar cache-bust para que el cliente vea la imagen nueva
     const imageUrl = `${urlData.publicUrl}?t=${Date.now()}`;
 
-    const { error: updateError } = await supabase
-      .from('recipes')
-      .update({ image_url: urlData.publicUrl })
-      .eq('id', id);
-
-    if (updateError) {
-      console.error('DB update error:', updateError);
-      return res.status(500).json({ error: updateError.message });
-    }
+    await query('UPDATE recipes SET image_url = $1 WHERE id = $2', [urlData.publicUrl, id]);
 
     return res.status(200).json({ image_url: imageUrl });
   } catch (err) {
