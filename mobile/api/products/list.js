@@ -2,6 +2,18 @@
 import { getAdminClient } from '../_lib/supabase.js';
 import { requireAuth } from '../_lib/auth.js';
 
+// Clave de agrupación normalizada: minúsculas, sin formas legales, sin espacios extra.
+// Permite fusionar "MAKRO S.A.", "Makro" y "makro" en un mismo grupo.
+function supplierKey(name) {
+  if (!name || name === 'Sin proveedor') return '\x00'; // ordena al final
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[,\s]*(s\.?\s*a\.?\s*u?\.?|s\.?\s*l\.?\s*u?\.?|s\.?\s*c(?:oop)?\.?|c\.?\s*b\.?|s\.?\s*a\.?\s*t\.?)\s*\.?\s*$/gi, '')
+    .trim();
+}
+
 async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método no permitido' });
@@ -39,27 +51,42 @@ async function handler(req, res) {
     }));
 
     if (grouped) {
-      // Agrupar por proveedor + traer facturas asociadas
+      // Agrupar por clave normalizada: fusiona variantes del mismo proveedor
+      // (ej. "MAKRO S.A." y "Makro" van al mismo grupo)
       const groups = {};
       for (const p of products) {
-        const s = p.supplier;
-        if (!groups[s]) groups[s] = { supplier: s, products: [], invoices: [] };
-        groups[s].products.push(p);
+        const key = supplierKey(p.supplier);
+        if (!groups[key]) {
+          groups[key] = {
+            supplier: p.supplier,      // nombre a mostrar: primer valor visto
+            rawNames: new Set(),       // todas las variantes para buscar facturas
+            products: [],
+            invoices: [],
+          };
+        }
+        groups[key].rawNames.add(p.supplier);
+        groups[key].products.push(p);
       }
 
-      // Traer facturas de todos los proveedores
-      const suppliers = Object.keys(groups).filter((s) => s !== 'Sin proveedor');
-      if (suppliers.length > 0) {
+      // Recoger todas las variantes de nombre para la query de facturas
+      const allRawNames = [];
+      for (const g of Object.values(groups)) {
+        if (g.supplier !== 'Sin proveedor') {
+          for (const n of g.rawNames) allRawNames.push(n);
+        }
+      }
+
+      if (allRawNames.length > 0) {
         const { data: invoices } = await supabase
           .from('invoices')
           .select('id, supplier, invoice_date, invoice_number, status')
-          .in('supplier', suppliers)
+          .in('supplier', allRawNames)
           .order('invoice_date', { ascending: false });
 
+        // Asignar cada factura al grupo por clave normalizada
         for (const inv of invoices || []) {
-          if (groups[inv.supplier]) {
-            groups[inv.supplier].invoices.push(inv);
-          }
+          const key = supplierKey(inv.supplier);
+          if (groups[key]) groups[key].invoices.push(inv);
         }
 
         // Contar items por factura (en una sola consulta)
@@ -77,8 +104,8 @@ async function handler(req, res) {
             totalMap[it.invoice_id] = (totalMap[it.invoice_id] || 0) + parseFloat(it.total_price || 0);
           }
 
-          for (const s of suppliers) {
-            groups[s].invoices = groups[s].invoices.map((inv) => ({
+          for (const g of Object.values(groups)) {
+            g.invoices = g.invoices.map((inv) => ({
               ...inv,
               items_count: countMap[inv.id] || 0,
               total: totalMap[inv.id] || 0,
@@ -87,7 +114,9 @@ async function handler(req, res) {
         }
       }
 
-      return res.status(200).json({ groups: Object.values(groups) });
+      // Eliminar rawNames del output (interno, no necesario en el frontend)
+      const result = Object.values(groups).map(({ rawNames, ...g }) => g);
+      return res.status(200).json({ groups: result });
     }
 
     return res.status(200).json({ products });

@@ -66,6 +66,20 @@ export const config = {
   },
 };
 
+// Normaliza el nombre del proveedor: elimina formas legales, colapsa espacios, title case.
+// "FRUTAS JUAN S.L." → "Frutas Juan"  |  "makro s.a.u" → "Makro"
+function normalizeSupplier(name) {
+  if (!name || typeof name !== 'string') return null;
+  const cleaned = name
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[,\s]*(s\.?\s*a\.?\s*u?\.?|s\.?\s*l\.?\s*u?\.?|s\.?\s*c(?:oop)?\.?|c\.?\s*b\.?|s\.?\s*a\.?\s*t\.?)\s*\.?\s*$/gi, '')
+    .trim();
+  if (!cleaned) return null;
+  // Title case (primera letra de cada palabra en mayúscula)
+  return cleaned.replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
 // Modelo configurable por env var. Default: Opus 4.7 (máxima calidad y vision de alta
 // resolución automática, ideal para facturas escaneadas). Alternativas:
 // - 'claude-sonnet-4-6': suele bastar para facturas limpias y es notablemente más barato.
@@ -198,11 +212,13 @@ async function handler(req, res) {
 
     const supabase = getAdminClient();
 
+    const supplierName = normalizeSupplier(extracted.supplier);
+
     // 1. Guardar factura
     const { data: invoice, error: invErr } = await supabase
       .from('invoices')
       .insert({
-        supplier: extracted.supplier,
+        supplier: supplierName,
         invoice_date: extracted.invoice_date,
         invoice_number: extracted.invoice_number,
         status: 'processed',
@@ -256,7 +272,7 @@ async function handler(req, res) {
       if (!productName || item.cost_per_unit_normalized == null) continue;
 
       const cleanUnit = cleanStr(item.unit, 20);
-      const productSupplier = extracted.supplier || null;
+      const productSupplier = supplierName;
       const normalized = productName.toLowerCase();
       // Usamos el coste normalizado (€/unidad base) para comparar precios de forma justa
       const newPrice = parseFloat(item.cost_per_unit_normalized);
