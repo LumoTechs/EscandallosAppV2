@@ -20,21 +20,24 @@ const queryClient = new QueryClient({
   },
 });
 
+const PUBLIC_ROUTES = new Set(['login', 'planes']);
+
 function AuthGate({ children }) {
   const { isReady, isAuthenticated } = useSession();
   const router = useRouter();
   const segments = useSegments();
+  const onPublic = PUBLIC_ROUTES.has(segments[0]);
   const onLogin = segments[0] === 'login';
 
   useEffect(() => {
     if (!isReady) return;
     SplashScreen.hideAsync();
-    if (!isAuthenticated && !onLogin) {
+    if (!isAuthenticated && !onPublic) {
       router.replace('/login');
     } else if (isAuthenticated && onLogin) {
       router.replace('/(tabs)');
     }
-  }, [isReady, isAuthenticated, onLogin, router]);
+  }, [isReady, isAuthenticated, onPublic, onLogin, router]);
 
   // Bloquear el render de hijos hasta que la ruta y el estado de sesión casen.
   // Si no, las pantallas protegidas montan brevemente antes del replace y
@@ -45,7 +48,7 @@ function AuthGate({ children }) {
     </View>
   );
   if (!isReady) return Spinner;
-  if (!isAuthenticated && !onLogin) return Spinner;
+  if (!isAuthenticated && !onPublic) return Spinner;
   if (isAuthenticated && onLogin) return Spinner;
   return children;
 }
@@ -58,6 +61,7 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="login" options={{ animation: 'fade' }} />
+            <Stack.Screen name="planes" options={{ animation: 'fade' }} />
             <Stack.Screen
               name="products/[id]"
               options={{
