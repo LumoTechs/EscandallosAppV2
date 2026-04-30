@@ -13,7 +13,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ChefHat, MessageCircle } from "lucide-react-native";
+import { ChefHat, MessageCircle, Sparkles } from "lucide-react-native";
 import { T } from "../theme";
 import { useSession } from "../utils/auth";
 
@@ -48,9 +48,12 @@ export default function Login() {
     try {
       await signIn(email, password);
     } catch (e) {
-      const msg = e?.message?.toLowerCase().includes("invalid")
+      const raw = e?.message || "";
+      const msg = raw.toLowerCase().includes("failed to fetch") || raw.toLowerCase().includes("networkerror")
+        ? "Error de conexión. Comprueba tu red o que la app esté bien configurada."
+        : raw.toLowerCase().includes("invalid")
         ? "Credenciales no válidas."
-        : e?.message || "No se pudo iniciar sesión.";
+        : raw || "No se pudo iniciar sesión.";
       setError(msg);
     } finally {
       setSubmitting(false);
@@ -250,6 +253,27 @@ export default function Login() {
             <MessageCircle size={18} color={T.ok} />
             <Text style={{ color: T.ok, fontWeight: "700", fontSize: 14 }}>
               Solicitar acceso por WhatsApp
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => router.push("/planes")}
+            style={{
+              marginTop: 12,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              borderWidth: 1,
+              borderColor: T.primary,
+              backgroundColor: T.primarySoft,
+              paddingHorizontal: 18,
+              paddingVertical: 12,
+              borderRadius: 12,
+            }}
+          >
+            <Sparkles size={18} color={T.primary} />
+            <Text style={{ color: T.primary, fontWeight: "700", fontSize: 14 }}>
+              Ver Planes
             </Text>
           </TouchableOpacity>
         </View>
