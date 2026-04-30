@@ -35,7 +35,8 @@ function InvoiceIllustration() {
 export default function UploadInvoice() {
   const insets = useSafeAreaInsets();
   const [processing, setProcessing] = useState(false);
-  const [result, setResult] = useState(null);
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [results, setResults] = useState([]); // una entrada por factura procesada
   const [error, setError] = useState(null);
   // Cada imagen: { uri, base64, mimeType }
   const [images, setImages] = useState([]);
@@ -80,31 +81,39 @@ export default function UploadInvoice() {
   const processImages = async () => {
     if (images.length === 0) return;
     setError(null);
-    setResult(null);
+    setResults([]);
     setProcessing(true);
-    try {
-      const base64Files = images.map((img) => `data:${img.mimeType};base64,${img.base64}`);
-      const apiResponse = await apiFetch("/api/invoices/process", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ base64Files }),
-      });
-      if (!apiResponse.ok) {
-        const errData = await apiResponse.json().catch(() => ({}));
-        throw new Error(errData.error || `Error ${apiResponse.status}`);
+    setProgress({ current: 0, total: images.length });
+
+    const collected = [];
+    for (let i = 0; i < images.length; i++) {
+      setProgress({ current: i + 1, total: images.length });
+      const img = images[i];
+      try {
+        const base64File = `data:${img.mimeType};base64,${img.base64}`;
+        const apiResponse = await apiFetch("/api/invoices/process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ base64Files: [base64File] }),
+        });
+        if (!apiResponse.ok) {
+          const errData = await apiResponse.json().catch(() => ({}));
+          collected.push({ error: errData.error || `Error ${apiResponse.status}` });
+        } else {
+          collected.push(await apiResponse.json());
+        }
+      } catch (err) {
+        console.error("Error processing invoice:", err);
+        collected.push({ error: err.message || "Error al procesar" });
       }
-      const data = await apiResponse.json();
-      setResult(data);
-    } catch (err) {
-      console.error("Error processing invoice:", err);
-      setError(err.message || "Error al procesar la factura");
-    } finally {
-      setProcessing(false);
     }
+
+    setResults(collected);
+    setProcessing(false);
   };
 
   const reset = () => {
-    setResult(null);
+    setResults([]);
     setError(null);
     setImages([]);
   };
@@ -125,7 +134,7 @@ export default function UploadInvoice() {
         </Text>
       </View>
 
-      {!result ? (
+      {results.length === 0 ? (
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 100 }}
@@ -147,10 +156,12 @@ export default function UploadInvoice() {
               </View>
               <ActivityIndicator size="small" color={T.primary} />
               <Text style={{ fontSize: 16, fontFamily: T.serif, color: T.ink, marginTop: 16 }}>
-                Analizando con IA
+                {progress.total > 1
+                  ? `Factura ${progress.current} de ${progress.total}`
+                  : "Analizando con IA"}
               </Text>
               <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 4 }}>
-                {images.length > 1 ? `${images.length} imágenes · puede tardar unos segundos` : "Esto puede tardar unos segundos"}
+                Esto puede tardar unos segundos
               </Text>
             </View>
           ) : (
@@ -335,167 +346,97 @@ export default function UploadInvoice() {
           contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 100 }}
           showsVerticalScrollIndicator={false}
         >
-          <View
-            style={{
-              backgroundColor: T.okSoft,
-              borderRadius: 16,
-              padding: 16,
-              marginBottom: 16,
-              flexDirection: "row",
-              gap: 12,
-              alignItems: "center",
-            }}
-          >
-            <View
-              style={{
-                width: 40,
-                height: 40,
-                backgroundColor: T.ok,
-                borderRadius: 20,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
+          {/* Cabecera resumen */}
+          <View style={{ backgroundColor: T.okSoft, borderRadius: 16, padding: 16, marginBottom: 16, flexDirection: "row", gap: 12, alignItems: "center" }}>
+            <View style={{ width: 40, height: 40, backgroundColor: T.ok, borderRadius: 20, justifyContent: "center", alignItems: "center" }}>
               <Check color="#fff" size={20} strokeWidth={2.5} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 15, fontFamily: T.serif, color: T.ink }}>
-                Factura procesada
+                {results.length === 1 ? "Factura procesada" : `${results.length} facturas procesadas`}
               </Text>
               <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 2 }}>
-                {result.saved_items?.length || 0} productos extraídos
+                {results.filter((r) => !r.error).reduce((s, r) => s + (r.saved_items?.length || 0), 0)} productos extraídos en total
               </Text>
             </View>
           </View>
 
-          <View
-            style={{
-              backgroundColor: T.surface,
-              borderRadius: 16,
-              borderWidth: 1,
-              borderColor: T.line,
-              padding: 20,
-              marginBottom: 14,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 11,
-                fontWeight: "600",
-                color: T.muted,
-                letterSpacing: 1.5,
-                textTransform: "uppercase",
-                marginBottom: 14,
-              }}
-            >
-              Detalles
-            </Text>
-            <View style={{ gap: 14 }}>
-              {[
-                { label: "Número de factura", value: result.invoice_data?.invoice_number || "N/A" },
-                { label: "Proveedor", value: result.invoice_data?.supplier || "N/A" },
-                {
-                  label: "Fecha",
-                  value: result.invoice_data?.invoice_date
-                    ? new Date(result.invoice_data.invoice_date).toLocaleDateString("es-ES")
-                    : "N/A",
-                },
-              ].map((row, i) => (
-                <View
-                  key={i}
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    paddingTop: i > 0 ? 14 : 0,
-                    borderTopWidth: i > 0 ? 1 : 0,
-                    borderTopColor: T.line,
-                  }}
-                >
-                  <Text style={{ fontSize: 12, color: T.inkSoft }}>{row.label}</Text>
-                  <Text style={{ fontSize: 14, color: T.ink, fontWeight: "500" }}>{row.value}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
+          {/* Una tarjeta por factura */}
+          {results.map((res, idx) => (
+            <View key={idx} style={{ marginBottom: 16 }}>
+              {results.length > 1 && (
+                <Text style={{ fontSize: 10, fontWeight: "600", color: T.muted, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>
+                  Factura {idx + 1}
+                </Text>
+              )}
 
-          <View
-            style={{
-              backgroundColor: T.surface,
-              borderRadius: 16,
-              borderWidth: 1,
-              borderColor: T.line,
-              padding: 20,
-              marginBottom: 14,
-            }}
-          >
-            <Text style={{ fontSize: 18, fontFamily: T.serif, color: T.ink, marginBottom: 14, letterSpacing: -0.3 }}>
-              Productos
-            </Text>
-            <View>
-              {result.saved_items?.map((item, idx) => (
-                <View
-                  key={idx}
-                  style={{
-                    paddingVertical: 12,
-                    borderTopWidth: idx > 0 ? 1 : 0,
-                    borderTopColor: T.line,
-                  }}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: "500", color: T.ink }}>
-                    {item.product_name}
-                  </Text>
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
-                    <Text style={{ fontSize: 12, color: T.inkSoft }}>
-                      {parseFloat(item.quantity).toFixed(2)} × €{parseFloat(item.unit_price).toFixed(2)}
-                    </Text>
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: T.primary }}>
-                      €{parseFloat(item.total_amount).toFixed(2)}
-                    </Text>
-                  </View>
+              {res.error ? (
+                <View style={{ backgroundColor: T.primarySoft, borderLeftWidth: 3, borderLeftColor: T.primary, borderRadius: 10, padding: 14, flexDirection: "row", gap: 10 }}>
+                  <AlertCircle color={T.primary} size={18} strokeWidth={1.8} />
+                  <Text style={{ fontSize: 13, color: T.ink, flex: 1 }}>{res.error}</Text>
                 </View>
-              ))}
-            </View>
-          </View>
-
-          {result.alerts && result.alerts.length > 0 && (
-            <View
-              style={{
-                backgroundColor: T.primarySoft,
-                borderRadius: 16,
-                padding: 20,
-                marginBottom: 14,
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                <AlertCircle color={T.primary} size={16} strokeWidth={2} />
-                <Text style={{ fontSize: 14, fontWeight: "600", color: T.ink }}>Alertas generadas</Text>
-              </View>
-              <View style={{ gap: 10 }}>
-                {result.alerts.map((alert) => (
-                  <View key={alert.id} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
-                    <View
-                      style={{
-                        width: 4,
-                        height: 4,
-                        backgroundColor: T.primary,
-                        borderRadius: 2,
-                        marginTop: 6,
-                      }}
-                    />
-                    <Text style={{ flex: 1, fontSize: 13, color: T.ink, lineHeight: 18 }}>{alert.message}</Text>
+              ) : (
+                <>
+                  <View style={{ backgroundColor: T.surface, borderRadius: 16, borderWidth: 1, borderColor: T.line, padding: 20, marginBottom: 10 }}>
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 14 }}>Detalles</Text>
+                    <View style={{ gap: 14 }}>
+                      {[
+                        { label: "Número de factura", value: res.invoice_data?.invoice_number || "N/A" },
+                        { label: "Proveedor", value: res.invoice_data?.supplier || "N/A" },
+                        { label: "Fecha", value: res.invoice_data?.invoice_date ? new Date(res.invoice_data.invoice_date).toLocaleDateString("es-ES") : "N/A" },
+                      ].map((row, i) => (
+                        <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 14 : 0, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: T.line }}>
+                          <Text style={{ fontSize: 12, color: T.inkSoft }}>{row.label}</Text>
+                          <Text style={{ fontSize: 14, color: T.ink, fontWeight: "500" }}>{row.value}</Text>
+                        </View>
+                      ))}
+                    </View>
                   </View>
-                ))}
-              </View>
+
+                  <View style={{ backgroundColor: T.surface, borderRadius: 16, borderWidth: 1, borderColor: T.line, padding: 20, marginBottom: 10 }}>
+                    <Text style={{ fontSize: 18, fontFamily: T.serif, color: T.ink, marginBottom: 14, letterSpacing: -0.3 }}>Productos</Text>
+                    {res.saved_items?.map((item, i) => (
+                      <View key={i} style={{ paddingVertical: 12, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: T.line }}>
+                        <Text style={{ fontSize: 14, fontWeight: "500", color: T.ink }}>{item.product_name}</Text>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
+                          <Text style={{ fontSize: 12, color: T.inkSoft }}>
+                            {parseFloat(item.quantity).toFixed(2)} × €{parseFloat(item.unit_price).toFixed(2)}
+                          </Text>
+                          <Text style={{ fontSize: 14, fontWeight: "600", color: T.primary }}>
+                            €{parseFloat(item.total_amount).toFixed(2)}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+
+                  {res.alerts?.length > 0 && (
+                    <View style={{ backgroundColor: T.primarySoft, borderRadius: 16, padding: 20, marginBottom: 10 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                        <AlertCircle color={T.primary} size={16} strokeWidth={2} />
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: T.ink }}>Alertas generadas</Text>
+                      </View>
+                      <View style={{ gap: 10 }}>
+                        {res.alerts.map((alert) => (
+                          <View key={alert.id} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+                            <View style={{ width: 4, height: 4, backgroundColor: T.primary, borderRadius: 2, marginTop: 6 }} />
+                            <Text style={{ flex: 1, fontSize: 13, color: T.ink, lineHeight: 18 }}>{alert.message}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </>
+              )}
             </View>
-          )}
+          ))}
 
           <TouchableOpacity
             activeOpacity={0.88}
             style={{ backgroundColor: T.primary, borderRadius: 14, padding: 18, alignItems: "center" }}
             onPress={reset}
           >
-            <Text style={{ fontSize: 15, fontWeight: "600", color: "#fff" }}>Procesar otra factura</Text>
+            <Text style={{ fontSize: 15, fontWeight: "600", color: "#fff" }}>Procesar más facturas</Text>
           </TouchableOpacity>
         </ScrollView>
       )}
