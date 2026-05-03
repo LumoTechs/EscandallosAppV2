@@ -96,9 +96,11 @@ export default function InvoiceDetail() {
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" color={T.primary} />
         </View>
-      ) : error ? (
+      ) : error || !invoice ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 32 }}>
-          <Text style={{ fontSize: 15, color: T.muted, textAlign: "center" }}>{error}</Text>
+          <Text style={{ fontSize: 15, color: T.muted, textAlign: "center" }}>
+            {error || "No se pudo cargar la factura"}
+          </Text>
         </View>
       ) : (
         <ScrollView

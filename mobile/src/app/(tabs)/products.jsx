@@ -244,7 +244,7 @@ export default function Products() {
         >
           <Search color={T.muted} size={18} strokeWidth={1.8} />
           <TextInput
-            placeholder={tab === "productos" ? "Buscar producto..." : "Buscar proveedor..."}
+            placeholder="Buscar producto..."
             value={search}
             onChangeText={setSearch}
             style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 10, fontSize: 14, color: T.ink }}

@@ -130,7 +130,7 @@ export default function UploadInvoice() {
           Procesar factura
         </Text>
         <Text style={{ fontSize: 14, color: T.inkSoft, marginTop: 4 }}>
-          Añade una o varias fotos de la misma factura
+          Añade una o varias facturas para procesarlas en lote
         </Text>
       </View>
 

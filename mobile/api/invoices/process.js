@@ -118,33 +118,38 @@ async function handler(req, res) {
   try {
     const { base64File, base64Files } = req.body || {};
 
-    // Normalizar: aceptar array (base64Files) o único (base64File, retrocompat)
-    const files = Array.isArray(base64Files) && base64Files.length > 0
-      ? base64Files
-      : base64File
-        ? [base64File]
-        : null;
-
-    if (!files) {
-      return res.status(400).json({ error: 'base64Files requerido' });
+    // El endpoint procesa UNA factura por request. El frontend itera 1×imagen
+    // para mostrar progreso. Aceptamos `base64Files` (array de 1) por compat,
+    // pero rechazamos arrays >1 — Claude devolvería una sola factura fusionando todo.
+    let file;
+    if (Array.isArray(base64Files)) {
+      if (base64Files.length !== 1) {
+        return res.status(400).json({
+          error: 'base64Files debe contener exactamente 1 imagen. Llama al endpoint una vez por factura.',
+        });
+      }
+      file = base64Files[0];
+    } else if (base64File) {
+      file = base64File;
+    } else {
+      return res.status(400).json({ error: 'base64File requerido' });
     }
 
-    // Construir bloques de contenido: una entrada por imagen/documento + el prompt al final
-    const contentBlocks = [];
-    for (const file of files) {
-      const match = file.match(/^data:([^;]+);base64,(.+)$/);
-      if (!match) {
-        return res.status(400).json({ error: 'Formato base64 inválido en una de las imágenes' });
-      }
-      const mediaType = match[1];
-      const base64Data = match[2];
-      const isPdf = mediaType === 'application/pdf';
-      contentBlocks.push({
+    const match = file.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) {
+      return res.status(400).json({ error: 'Formato base64 inválido' });
+    }
+    const mediaType = match[1];
+    const base64Data = match[2];
+    const isPdf = mediaType === 'application/pdf';
+
+    const contentBlocks = [
+      {
         type: isPdf ? 'document' : 'image',
         source: { type: 'base64', media_type: mediaType, data: base64Data },
-      });
-    }
-    contentBlocks.push({ type: 'text', text: EXTRACTION_PROMPT });
+      },
+      { type: 'text', text: EXTRACTION_PROMPT },
+    ];
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
