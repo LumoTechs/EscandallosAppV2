@@ -113,6 +113,7 @@ export default function Products() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState(null);
+  const [tab, setTab] = useState("productos");
 
   useEffect(() => {
     if (!isReady || !isAuthenticated) return;
@@ -137,6 +138,16 @@ export default function Products() {
     () => groups.reduce((s, g) => s + (g.products?.length || 0), 0),
     [groups]
   );
+
+  const allProducts = useMemo(() => {
+    const list = [];
+    for (const g of groups) {
+      for (const p of g.products || []) {
+        list.push({ ...p, supplier: g.supplier });
+      }
+    }
+    return list.sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }, [groups]);
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: insets.top }}>
@@ -176,6 +187,49 @@ export default function Products() {
         </Text>
       </View>
 
+      {/* Pestañas */}
+      <View style={{ paddingHorizontal: 24, paddingBottom: 12 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            backgroundColor: T.surface,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: T.line,
+            padding: 3,
+          }}
+        >
+          {[
+            { key: "productos", label: "Productos" },
+            { key: "proveedores", label: "Proveedores" },
+          ].map((t) => (
+            <TouchableOpacity
+              key={t.key}
+              onPress={() => setTab(t.key)}
+              activeOpacity={0.8}
+              style={{
+                flex: 1,
+                paddingVertical: 8,
+                borderRadius: 10,
+                alignItems: "center",
+                backgroundColor: tab === t.key ? T.primary : "transparent",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: tab === t.key ? "#fff" : T.inkSoft,
+                }}
+              >
+                {t.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Buscador */}
       <View style={{ paddingHorizontal: 24, paddingBottom: 16 }}>
         <View
           style={{
@@ -190,7 +244,7 @@ export default function Products() {
         >
           <Search color={T.muted} size={18} strokeWidth={1.8} />
           <TextInput
-            placeholder="Buscar producto..."
+            placeholder={tab === "productos" ? "Buscar producto..." : "Buscar proveedor..."}
             value={search}
             onChangeText={setSearch}
             style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 10, fontSize: 14, color: T.ink }}
@@ -208,7 +262,69 @@ export default function Products() {
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" color={T.primary} />
         </View>
+      ) : tab === "productos" ? (
+        /* ── PESTAÑA PRODUCTOS ── */
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 100 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {allProducts.length === 0 ? (
+            <View style={{ paddingVertical: 48, alignItems: "center" }}>
+              <EmptyBasket />
+              <Text style={{ fontSize: 17, fontFamily: T.serif, color: T.ink, marginTop: 16 }}>Sin resultados</Text>
+              <Text style={{ fontSize: 13, color: T.inkSoft, marginTop: 4 }}>Procesa una factura para empezar</Text>
+            </View>
+          ) : (
+            <View
+              style={{
+                backgroundColor: T.surface,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: T.line,
+                overflow: "hidden",
+              }}
+            >
+              {allProducts.map((p, idx) => {
+                const palette = supplierColor(p.supplier);
+                return (
+                  <TouchableOpacity
+                    key={p.id}
+                    activeOpacity={0.7}
+                    onPress={() => router.push(`/products/${p.id}`)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingHorizontal: 16,
+                      paddingVertical: 12,
+                      gap: 12,
+                      borderTopWidth: idx > 0 ? 1 : 0,
+                      borderTopColor: T.line,
+                    }}
+                  >
+                    <ProductThumb unit={p.unit} palette={palette} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, color: T.ink, fontWeight: "500" }}>{p.name}</Text>
+                      <Text style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
+                        {p.supplier || "Sin proveedor"}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: T.ink, fontFamily: T.serif, letterSpacing: -0.2 }}>
+                        €{Number(p.current_price || 0).toFixed(2)}
+                      </Text>
+                      <Text style={{ fontSize: 10, color: T.muted, marginTop: 2 }}>
+                        por {p.unit || "ud"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </ScrollView>
       ) : (
+        /* ── PESTAÑA PROVEEDORES ── */
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 100 }}
@@ -333,8 +449,10 @@ export default function Products() {
                             </Text>
                             <View style={{ gap: 6 }}>
                               {invoices.map((inv) => (
-                                <View
+                                <TouchableOpacity
                                   key={inv.id}
+                                  activeOpacity={0.75}
+                                  onPress={() => router.push(`/invoices/${inv.id}`)}
                                   style={{
                                     flexDirection: "row",
                                     justifyContent: "space-between",
@@ -365,7 +483,7 @@ export default function Products() {
                                       €{Number(inv.total).toFixed(2)}
                                     </Text>
                                   )}
-                                </View>
+                                </TouchableOpacity>
                               ))}
                             </View>
                           </View>
@@ -422,3 +540,4 @@ export default function Products() {
     </View>
   );
 }
+

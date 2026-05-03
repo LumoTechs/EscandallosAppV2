@@ -40,6 +40,7 @@ const PLANS = [
       "Subida de facturas (OCR)",
       "Análisis de costes por receta",
       "Soporte L-V de 9:00 a 14:00",
+      "* Consumo medio de tokens mensual al rededor de 5€, sujeto a actividad del cliente",
     ],
     accent: T.info,
     accentSoft: T.infoSoft,
@@ -58,6 +59,7 @@ const PLANS = [
       "App adaptada a la imagen del restaurante",
       "Logos, colores y dominio propio",
       "Soporte L-S de 9:00 a 20:00",
+      "* Consumo medio de tokens mensual al rededor de 5€, sujeto a actividad del cliente",
     ],
     accent: T.primary,
     accentSoft: T.primarySoft,
@@ -414,36 +416,44 @@ function PlanCard({ plan, width, onChoose, loading }) {
       </Text>
 
       <View style={{ gap: 10, marginBottom: 22 }}>
-        {plan.features.map((f, i) => (
-          <View
-            key={i}
-            style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}
-          >
+        {plan.features.map((f, i) => {
+          const isNote = f.startsWith("*");
+          return (
             <View
-              style={{
-                width: 18,
-                height: 18,
-                borderRadius: 999,
-                backgroundColor: plan.accentSoft,
-                alignItems: "center",
-                justifyContent: "center",
-                marginTop: 2,
-              }}
+              key={i}
+              style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}
             >
-              <Check size={12} color={plan.accent} strokeWidth={3} />
+              {!isNote && (
+                <View
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: 999,
+                    backgroundColor: plan.accentSoft,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginTop: 2,
+                  }}
+                >
+                  <Check size={12} color={plan.accent} strokeWidth={3} />
+                </View>
+              )}
+              <Text
+                style={{
+                  flex: 1,
+                  color: isNote ? T.muted : T.ink,
+                  fontSize: isNote ? 11 : 14,
+                  lineHeight: isNote ? 15 : 20,
+                  fontStyle: isNote ? "italic" : "normal",
+                  marginLeft: isNote ? 28 : 0,
+                  marginTop: isNote ? 2 : 0,
+                }}
+              >
+                {f}
+              </Text>
             </View>
-            <Text
-              style={{
-                flex: 1,
-                color: T.ink,
-                fontSize: 14,
-                lineHeight: 20,
-              }}
-            >
-              {f}
-            </Text>
-          </View>
-        ))}
+          );
+        })}
       </View>
 
       <TouchableOpacity
