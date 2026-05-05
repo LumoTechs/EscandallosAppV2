@@ -139,7 +139,7 @@ export default function Products() {
     }
     setMergeSaving(true);
     try {
-      const res = await apiFetch("/api/suppliers", {
+      const res = await apiFetch("/api/products/list", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ alias: mergeAlias.trim(), canonical: mergeCanonical.trim() }),
