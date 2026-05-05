@@ -116,40 +116,37 @@ async function handler(req, res) {
   }
 
   try {
-    const { base64File, base64Files } = req.body || {};
+    const { base64File, base64Files, multipage } = req.body || {};
 
-    // El endpoint procesa UNA factura por request. El frontend itera 1×imagen
-    // para mostrar progreso. Aceptamos `base64Files` (array de 1) por compat,
-    // pero rechazamos arrays >1 — Claude devolvería una sola factura fusionando todo.
-    let file;
-    if (Array.isArray(base64Files)) {
-      if (base64Files.length !== 1) {
+    // multipage=true: todas las imágenes son páginas de la misma factura → una sola llamada.
+    // Sin multipage: exactamente 1 imagen por request (el frontend itera para mostrar progreso).
+    let files;
+    if (Array.isArray(base64Files) && base64Files.length > 0) {
+      if (!multipage && base64Files.length !== 1) {
         return res.status(400).json({
           error: 'base64Files debe contener exactamente 1 imagen. Llama al endpoint una vez por factura.',
         });
       }
-      file = base64Files[0];
+      files = base64Files;
     } else if (base64File) {
-      file = base64File;
+      files = [base64File];
     } else {
       return res.status(400).json({ error: 'base64File requerido' });
     }
 
-    const match = file.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) {
-      return res.status(400).json({ error: 'Formato base64 inválido' });
-    }
-    const mediaType = match[1];
-    const base64Data = match[2];
-    const isPdf = mediaType === 'application/pdf';
-
-    const contentBlocks = [
-      {
+    const contentBlocks = [];
+    for (const f of files) {
+      const match = f.match(/^data:([^;]+);base64,(.+)$/);
+      if (!match) return res.status(400).json({ error: 'Formato base64 inválido' });
+      const mediaType = match[1];
+      const base64Data = match[2];
+      const isPdf = mediaType === 'application/pdf';
+      contentBlocks.push({
         type: isPdf ? 'document' : 'image',
         source: { type: 'base64', media_type: mediaType, data: base64Data },
-      },
-      { type: 'text', text: EXTRACTION_PROMPT },
-    ];
+      });
+    }
+    contentBlocks.push({ type: 'text', text: EXTRACTION_PROMPT });
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
