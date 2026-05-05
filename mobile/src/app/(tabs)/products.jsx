@@ -6,6 +6,8 @@ import {
   TextInput,
   ActivityIndicator,
   TouchableOpacity,
+  Modal,
+  Alert,
 } from "react-native";
 import { useEffect, useState, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +19,7 @@ import {
   FileText,
   TrendingUp,
   TrendingDown,
+  Merge,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import Svg, { Path, Circle, Defs, LinearGradient, Stop, Rect } from "react-native-svg";
@@ -115,6 +118,46 @@ export default function Products() {
   const [expanded, setExpanded] = useState(null);
   const [tab, setTab] = useState("productos");
   const [invoiceSort, setInvoiceSort] = useState("recientes"); // "recientes" | "fecha"
+  const [mergeModal, setMergeModal] = useState(false);
+  const [mergeCanonical, setMergeCanonical] = useState("");
+  const [mergeAlias, setMergeAlias] = useState("");
+  const [mergeSaving, setMergeSaving] = useState(false);
+
+  const supplierNames = useMemo(
+    () => groups.map((g) => g.supplier).filter((s) => s && s !== "Sin proveedor").sort(),
+    [groups]
+  );
+
+  const handleMerge = async () => {
+    if (!mergeCanonical.trim() || !mergeAlias.trim()) {
+      Alert.alert("Faltan datos", "Selecciona los dos proveedores.");
+      return;
+    }
+    if (mergeCanonical.trim() === mergeAlias.trim()) {
+      Alert.alert("Error", "Los dos proveedores deben ser diferentes.");
+      return;
+    }
+    setMergeSaving(true);
+    try {
+      const res = await apiFetch("/api/suppliers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alias: mergeAlias.trim(), canonical: mergeCanonical.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
+      setMergeModal(false);
+      setMergeCanonical("");
+      setMergeAlias("");
+      loadGroups(); // recargar para ver el efecto
+    } catch (e) {
+      Alert.alert("Error", e.message);
+    } finally {
+      setMergeSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!isReady || !isAuthenticated) return;
@@ -331,9 +374,9 @@ export default function Products() {
           contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 100 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Toggle orden de facturas */}
+          {/* Toggle orden + botón unificar */}
           {groups.length > 0 && (
-            <View style={{ flexDirection: "row", gap: 6, marginBottom: 12 }}>
+            <View style={{ flexDirection: "row", gap: 6, marginBottom: 12, alignItems: "center" }}>
               {[
                 { key: "recientes", label: "Recientes" },
                 { key: "fecha", label: "Fecha factura" },
@@ -356,8 +399,89 @@ export default function Products() {
                   </Text>
                 </TouchableOpacity>
               ))}
+              <View style={{ flex: 1 }} />
+              <TouchableOpacity
+                onPress={() => setMergeModal(true)}
+                activeOpacity={0.75}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 5,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: T.line,
+                  backgroundColor: T.surface,
+                }}
+              >
+                <Merge size={12} color={T.inkSoft} strokeWidth={2} />
+                <Text style={{ fontSize: 12, fontWeight: "600", color: T.inkSoft }}>Unificar</Text>
+              </TouchableOpacity>
             </View>
           )}
+
+          {/* Modal unificar proveedores */}
+          <Modal visible={mergeModal} animationType="slide" transparent onRequestClose={() => setMergeModal(false)}>
+            <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
+              <View style={{ backgroundColor: T.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <Text style={{ fontSize: 20, fontFamily: T.serif, color: T.ink, letterSpacing: -0.4 }}>Unificar proveedores</Text>
+                  <TouchableOpacity onPress={() => setMergeModal(false)} activeOpacity={0.7}
+                    style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, justifyContent: "center", alignItems: "center" }}>
+                    <X size={16} color={T.ink} strokeWidth={2} />
+                  </TouchableOpacity>
+                </View>
+                <Text style={{ fontSize: 13, color: T.inkSoft, marginBottom: 20 }}>
+                  El nombre alternativo pasará a tratarse como el proveedor principal, tanto en datos existentes como en nuevas facturas.
+                </Text>
+
+                <Text style={{ fontSize: 11, fontWeight: "700", color: T.muted, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
+                  Proveedor principal (nombre que se conserva)
+                </Text>
+                <TextInput
+                  value={mergeCanonical}
+                  onChangeText={setMergeCanonical}
+                  placeholder="Escribe o selecciona..."
+                  placeholderTextColor={T.muted}
+                  style={{ borderWidth: 1, borderColor: T.line, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: T.ink, backgroundColor: T.surface, marginBottom: 6 }}
+                />
+                {supplierNames.filter((s) => mergeCanonical && s.toLowerCase().includes(mergeCanonical.toLowerCase()) && s !== mergeCanonical).slice(0, 4).map((s) => (
+                  <TouchableOpacity key={s} onPress={() => setMergeCanonical(s)} style={{ paddingVertical: 9, paddingHorizontal: 14, borderRadius: 8, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, marginBottom: 4 }}>
+                    <Text style={{ fontSize: 14, color: T.ink }}>{s}</Text>
+                  </TouchableOpacity>
+                ))}
+
+                <Text style={{ fontSize: 11, fontWeight: "700", color: T.muted, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6, marginTop: 14 }}>
+                  Nombre alternativo (se unificará con el principal)
+                </Text>
+                <TextInput
+                  value={mergeAlias}
+                  onChangeText={setMergeAlias}
+                  placeholder="Escribe o selecciona..."
+                  placeholderTextColor={T.muted}
+                  style={{ borderWidth: 1, borderColor: T.line, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: T.ink, backgroundColor: T.surface, marginBottom: 6 }}
+                />
+                {supplierNames.filter((s) => mergeAlias && s.toLowerCase().includes(mergeAlias.toLowerCase()) && s !== mergeAlias && s !== mergeCanonical).slice(0, 4).map((s) => (
+                  <TouchableOpacity key={s} onPress={() => setMergeAlias(s)} style={{ paddingVertical: 9, paddingHorizontal: 14, borderRadius: 8, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, marginBottom: 4 }}>
+                    <Text style={{ fontSize: 14, color: T.ink }}>{s}</Text>
+                  </TouchableOpacity>
+                ))}
+
+                <TouchableOpacity
+                  onPress={handleMerge}
+                  disabled={mergeSaving}
+                  activeOpacity={0.88}
+                  style={{ backgroundColor: T.primary, borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 20, opacity: mergeSaving ? 0.7 : 1 }}
+                >
+                  {mergeSaving
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>Unificar</Text>
+                  }
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
 
           {groups.length === 0 ? (
             <View style={{ paddingVertical: 48, alignItems: "center" }}>

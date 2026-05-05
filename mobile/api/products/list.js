@@ -51,14 +51,24 @@ async function handler(req, res) {
     }));
 
     if (grouped) {
-      // Agrupar por clave normalizada: fusiona variantes del mismo proveedor
-      // (ej. "MAKRO S.A." y "Makro" van al mismo grupo)
+      // Cargar aliases manuales para fusionar proveedores distintos
+      const { data: aliasRows } = await supabase
+        .from('supplier_aliases')
+        .select('alias, canonical');
+      const aliasMap = {};
+      for (const row of aliasRows || []) aliasMap[row.alias] = row.canonical;
+
+      // Resuelve el nombre canónico aplicando alias y normalización
+      const resolveSupplier = (name) => aliasMap[name] || aliasMap[supplierKey(name)] || name;
+
+      // Agrupar por clave normalizada + aliases
       const groups = {};
       for (const p of products) {
-        const key = supplierKey(p.supplier);
+        const resolved = resolveSupplier(p.supplier);
+        const key = supplierKey(resolved);
         if (!groups[key]) {
           groups[key] = {
-            supplier: p.supplier,      // nombre a mostrar: primer valor visto
+            supplier: resolved,        // nombre a mostrar: el canonical
             rawNames: new Set(),       // todas las variantes para buscar facturas
             products: [],
             invoices: [],

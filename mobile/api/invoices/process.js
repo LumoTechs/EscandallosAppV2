@@ -217,7 +217,12 @@ async function handler(req, res) {
 
     const supabase = getAdminClient();
 
-    const supplierName = normalizeSupplier(extracted.supplier);
+    // Normalizar proveedor y aplicar aliases manuales
+    const rawSupplier = normalizeSupplier(extracted.supplier);
+    const { data: aliasRow } = rawSupplier
+      ? await supabase.from('supplier_aliases').select('canonical').eq('alias', rawSupplier).maybeSingle()
+      : { data: null };
+    const supplierName = aliasRow?.canonical || rawSupplier;
 
     // 1. Guardar factura
     const { data: invoice, error: invErr } = await supabase
