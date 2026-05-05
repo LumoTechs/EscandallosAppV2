@@ -114,6 +114,7 @@ export default function Products() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState(null);
   const [tab, setTab] = useState("productos");
+  const [invoiceSort, setInvoiceSort] = useState("recientes"); // "recientes" | "fecha"
 
   useEffect(() => {
     if (!isReady || !isAuthenticated) return;
@@ -330,6 +331,34 @@ export default function Products() {
           contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 100 }}
           showsVerticalScrollIndicator={false}
         >
+          {/* Toggle orden de facturas */}
+          {groups.length > 0 && (
+            <View style={{ flexDirection: "row", gap: 6, marginBottom: 12 }}>
+              {[
+                { key: "recientes", label: "Recientes" },
+                { key: "fecha", label: "Fecha factura" },
+              ].map((opt) => (
+                <TouchableOpacity
+                  key={opt.key}
+                  onPress={() => setInvoiceSort(opt.key)}
+                  activeOpacity={0.75}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 20,
+                    backgroundColor: invoiceSort === opt.key ? T.primary : T.surface,
+                    borderWidth: 1,
+                    borderColor: invoiceSort === opt.key ? T.primary : T.line,
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: invoiceSort === opt.key ? "#fff" : T.inkSoft }}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
           {groups.length === 0 ? (
             <View style={{ paddingVertical: 48, alignItems: "center" }}>
               <EmptyBasket />
@@ -345,7 +374,12 @@ export default function Products() {
               {groups.map((g) => {
                 const isOpen = expanded === g.supplier;
                 const items = g.products || [];
-                const invoices = g.invoices || [];
+                const invoices = [...(g.invoices || [])].sort((a, b) => {
+                  if (invoiceSort === "fecha") {
+                    return new Date(b.invoice_date || 0) - new Date(a.invoice_date || 0);
+                  }
+                  return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+                });
                 const palette = supplierColor(g.supplier);
                 return (
                   <View

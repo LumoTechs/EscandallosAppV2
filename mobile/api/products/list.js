@@ -79,9 +79,9 @@ async function handler(req, res) {
       if (allRawNames.length > 0) {
         const { data: invoices } = await supabase
           .from('invoices')
-          .select('id, supplier, invoice_date, invoice_number, status')
+          .select('id, supplier, invoice_date, invoice_number, status, created_at')
           .in('supplier', allRawNames)
-          .order('invoice_date', { ascending: false });
+          .order('created_at', { ascending: false });
 
         // Asignar cada factura al grupo por clave normalizada
         for (const inv of invoices || []) {
