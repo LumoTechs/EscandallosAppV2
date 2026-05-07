@@ -5,6 +5,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  Modal,
 } from "react-native";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -36,10 +37,10 @@ export default function UploadInvoice() {
   const insets = useSafeAreaInsets();
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
-  const [results, setResults] = useState([]); // una entrada por factura procesada
+  const [results, setResults] = useState([]);
   const [error, setError] = useState(null);
-  // Cada imagen: { uri, base64, mimeType }
   const [images, setImages] = useState([]);
+  const [modeModal, setModeModal] = useState(false);
 
   const addFromGallery = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -78,13 +79,36 @@ export default function UploadInvoice() {
     setImages((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const processImages = async () => {
+  const processImages = async (mode) => {
     if (images.length === 0) return;
     setError(null);
     setResults([]);
     setProcessing(true);
-    setProgress({ current: 0, total: images.length });
 
+    if (mode === "multipage") {
+      setProgress({ current: 1, total: 1 });
+      try {
+        const base64Files = images.map((img) => `data:${img.mimeType};base64,${img.base64}`);
+        const apiResponse = await apiFetch("/api/invoices/process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ base64Files, multipage: true }),
+        });
+        if (!apiResponse.ok) {
+          const errData = await apiResponse.json().catch(() => ({}));
+          setResults([{ error: errData.error || `Error ${apiResponse.status}` }]);
+        } else {
+          setResults([await apiResponse.json()]);
+        }
+      } catch (err) {
+        setResults([{ error: err.message || "Error al procesar" }]);
+      }
+      setProcessing(false);
+      return;
+    }
+
+    // mode === "separate": una llamada por imagen
+    setProgress({ current: 0, total: images.length });
     const collected = [];
     for (let i = 0; i < images.length; i++) {
       setProgress({ current: i + 1, total: images.length });
@@ -103,11 +127,9 @@ export default function UploadInvoice() {
           collected.push(await apiResponse.json());
         }
       } catch (err) {
-        console.error("Error processing invoice:", err);
         collected.push({ error: err.message || "Error al procesar" });
       }
     }
-
     setResults(collected);
     setProcessing(false);
   };
@@ -299,7 +321,13 @@ export default function UploadInvoice() {
               {images.length > 0 && (
                 <TouchableOpacity
                   activeOpacity={0.88}
-                  onPress={processImages}
+                  onPress={() => {
+                    if (images.length === 1) {
+                      processImages("separate");
+                    } else {
+                      setModeModal(true);
+                    }
+                  }}
                   style={{
                     backgroundColor: T.primary,
                     borderRadius: 16,
@@ -440,6 +468,55 @@ export default function UploadInvoice() {
           </TouchableOpacity>
         </ScrollView>
       )}
+
+      {/* Modal: facturas distintas vs. una factura multipágina */}
+      <Modal visible={modeModal} animationType="slide" transparent onRequestClose={() => setModeModal(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: T.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <Text style={{ fontSize: 20, fontFamily: T.serif, color: T.ink, letterSpacing: -0.4 }}>
+                ¿Cómo son estas imágenes?
+              </Text>
+              <TouchableOpacity
+                onPress={() => setModeModal(false)}
+                activeOpacity={0.7}
+                style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, justifyContent: "center", alignItems: "center" }}
+              >
+                <X size={16} color={T.ink} strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 13, color: T.inkSoft, marginBottom: 24 }}>
+              Selecciona cómo quieres tratar las {images.length} imágenes seleccionadas.
+            </Text>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => { setModeModal(false); processImages("separate"); }}
+              style={{ backgroundColor: T.surface, borderRadius: 14, borderWidth: 1.5, borderColor: T.line, padding: 18, marginBottom: 10 }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: "700", color: T.ink, marginBottom: 4 }}>
+                Facturas distintas
+              </Text>
+              <Text style={{ fontSize: 13, color: T.inkSoft, lineHeight: 18 }}>
+                Cada imagen es una factura diferente. Se procesará una por una.
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => { setModeModal(false); processImages("multipage"); }}
+              style={{ backgroundColor: T.primarySoft, borderRadius: 14, borderWidth: 1.5, borderColor: T.primary, padding: 18 }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: "700", color: T.primary, marginBottom: 4 }}>
+                Una sola factura (varias páginas)
+              </Text>
+              <Text style={{ fontSize: 13, color: T.ink, lineHeight: 18 }}>
+                Todas las imágenes son páginas de la misma factura. Se analizarán juntas.
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
