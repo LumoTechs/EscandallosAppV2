@@ -1,6 +1,7 @@
 // api/invoices/process.js
 import { getUserClient } from '../_lib/supabase.js';
 import { compose, rateLimit, requireSameOrigin, requireAuth } from '../_lib/auth.js';
+import { logAiUsage, resolveRestaurantId } from '../_lib/aiUsage.js';
 
 // ============================================
 // PROMPT REFORZADO para OCR de facturas
@@ -154,6 +155,7 @@ async function handler(req, res) {
     }
 
     let anthropicResponse;
+    const t0 = Date.now();
     try {
       anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -197,6 +199,20 @@ async function handler(req, res) {
 
     if (!textBlock || !textBlock.text) {
       throw new Error('Respuesta inesperada del modelo');
+    }
+
+    // Log de uso IA (no bloqueante)
+    {
+      const userSupabase = getUserClient(req.headers.authorization);
+      const restaurantId = await resolveRestaurantId(userSupabase, req.user?.id);
+      logAiUsage({
+        endpoint: 'invoices/process',
+        model: ANTHROPIC_MODEL,
+        restaurantId,
+        usage: anthropicData.usage,
+        durationMs: Date.now() - t0,
+        metadata: { pages: files.length, multipage: !!multipage },
+      });
     }
 
     const jsonStr = extractFirstJsonObject(textBlock.text);

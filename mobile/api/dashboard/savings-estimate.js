@@ -1,5 +1,6 @@
 import { getUserClient } from '../_lib/supabase.js';
 import { requireAuth } from '../_lib/auth.js';
+import { logAiUsage, resolveRestaurantId } from '../_lib/aiUsage.js';
 
 // Cache 24 h por user (multi-tenant safe). En una instancia lambda compartida,
 // dos users distintos NO deben recibir la estimación cacheada del otro.
@@ -83,6 +84,7 @@ Devuelve SOLO este JSON (sin texto adicional):
   "summary": "<frase de 8-12 palabras explicando el ahorro principal>"
 }`;
 
+    const t0 = Date.now();
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -106,6 +108,18 @@ Devuelve SOLO este JSON (sin texto adicional):
     const anthropicData = await anthropicRes.json();
     const textBlock = anthropicData.content?.find((c) => c.type === 'text');
     if (!textBlock) throw new Error('Respuesta vacía de Opus');
+
+    // Log de uso IA (no bloqueante)
+    {
+      const restaurantId = await resolveRestaurantId(supabase, userId);
+      logAiUsage({
+        endpoint: 'dashboard/savings-estimate',
+        model: 'claude-opus-4-7',
+        restaurantId,
+        usage: anthropicData.usage,
+        durationMs: Date.now() - t0,
+      });
+    }
 
     const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No se encontró JSON en respuesta de Opus');
