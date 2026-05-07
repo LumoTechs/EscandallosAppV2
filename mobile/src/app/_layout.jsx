@@ -20,7 +20,7 @@ const queryClient = new QueryClient({
   },
 });
 
-const PUBLIC_ROUTES = new Set(['login', 'planes']);
+const PUBLIC_ROUTES = new Set(['login', 'planes', 'legal']);
 
 function AuthGate({ children }) {
   const { isReady, isAuthenticated } = useSession();
@@ -62,6 +62,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="login" options={{ animation: 'fade' }} />
             <Stack.Screen name="planes" options={{ animation: 'fade' }} />
+            <Stack.Screen name="legal" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen
               name="products/[id]"
               options={{
