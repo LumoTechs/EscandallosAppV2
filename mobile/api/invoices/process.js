@@ -1,5 +1,5 @@
 // api/invoices/process.js
-import { getAdminClient } from '../_lib/supabase.js';
+import { getUserClient } from '../_lib/supabase.js';
 import { compose, rateLimit, requireSameOrigin, requireAuth } from '../_lib/auth.js';
 
 // ============================================
@@ -212,7 +212,7 @@ async function handler(req, res) {
       return res.status(500).json({ error: 'La IA no devolvió un JSON válido' });
     }
 
-    const supabase = getAdminClient();
+    const supabase = getUserClient(req.headers.authorization);
 
     // Normalizar proveedor y aplicar aliases manuales
     const rawSupplier = normalizeSupplier(extracted.supplier);

@@ -34,6 +34,18 @@ async function resolveUserId(supabase, sub, fallback) {
   return data?.user_id || null;
 }
 
+// Webhook corre con service_role (sin auth.uid), asi que el trigger fill_restaurant_id
+// no rellena nada. Resolvemos restaurant_id explicitamente desde restaurant_members.
+async function resolveRestaurantId(supabase, userId) {
+  const { data } = await supabase
+    .from('restaurant_members')
+    .select('restaurant_id')
+    .eq('user_id', userId)
+    .limit(1)
+    .maybeSingle();
+  return data?.restaurant_id || null;
+}
+
 async function upsertSubscription(supabase, sub, fallbackUserId) {
   const priceId = sub.items?.data?.[0]?.price?.id || null;
   const plan = planForPrice(priceId);
@@ -42,9 +54,15 @@ async function upsertSubscription(supabase, sub, fallbackUserId) {
     console.warn('webhook: subscription sin user_id resoluble', sub.id);
     return;
   }
+  const restaurantId = await resolveRestaurantId(supabase, userId);
+  if (!restaurantId) {
+    console.warn('webhook: user sin restaurant_member, abort', userId);
+    return;
+  }
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id;
   const row = {
     user_id: userId,
+    restaurant_id: restaurantId,
     stripe_customer_id: customerId,
     stripe_subscription_id: sub.id,
     stripe_price_id: priceId,

@@ -1,7 +1,7 @@
 // api/products/[id]/history?range=6m|1m|1y|all
 // Devuelve histórico de precios + stats {min, max, points} para el chart de evolución.
 
-import { getAdminClient } from '../../_lib/supabase.js';
+import { getUserClient } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
 
 const RANGE_DAYS = {
@@ -23,7 +23,7 @@ async function handler(req, res) {
   const range = req.query.range || '6m';
 
   try {
-    const supabase = getAdminClient();
+    const supabase = getUserClient(req.headers.authorization);
 
     let query = supabase
       .from('product_prices')

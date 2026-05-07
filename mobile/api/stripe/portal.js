@@ -3,7 +3,7 @@
 // su suscripción (cambiar plan, cancelar, actualizar tarjeta, ver facturas).
 
 import { compose, rateLimit, requireSameOrigin, requireAuth } from '../_lib/auth.js';
-import { getAdminClient } from '../_lib/supabase.js';
+import { getUserClient } from '../_lib/supabase.js';
 import { getStripe, appBaseUrl } from '../_lib/stripe.js';
 
 async function handler(req, res) {
@@ -14,12 +14,14 @@ async function handler(req, res) {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ error: 'Usuario no identificado' });
 
-  const supabase = getAdminClient();
-  const { data: sub, error } = await supabase
+  const supabase = getUserClient(req.headers.authorization);
+  // RLS filtra a la subscription del restaurante del user
+  const { data: subs, error } = await supabase
     .from('subscriptions')
     .select('stripe_customer_id')
-    .eq('user_id', userId)
-    .maybeSingle();
+    .not('stripe_customer_id', 'is', null)
+    .limit(1);
+  const sub = subs?.[0] || null;
 
   if (error) {
     console.error('portal lookup error:', error);

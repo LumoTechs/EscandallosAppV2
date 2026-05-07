@@ -5,6 +5,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useSession } from '../utils/auth';
+import { useCurrentRestaurant } from '../utils/restaurant/useCurrentRestaurant';
 import { T } from '../theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -24,32 +25,48 @@ const PUBLIC_ROUTES = new Set(['login', 'planes']);
 
 function AuthGate({ children }) {
   const { isReady, isAuthenticated } = useSession();
+  const restaurantQuery = useCurrentRestaurant();
   const router = useRouter();
   const segments = useSegments();
   const onPublic = PUBLIC_ROUTES.has(segments[0]);
   const onLogin = segments[0] === 'login';
+  const onSetup = segments[0] === 'setup';
+
+  // El restaurant query solo arranca si está autenticado, así que esperar su
+  // resolución sólo bloquea cuando hay sesión.
+  const restaurantReady = !isAuthenticated || !restaurantQuery.isLoading;
+  const restaurant = restaurantQuery.data;
+  const needsSetup = isAuthenticated && restaurant && restaurant.setup_completed === false;
 
   useEffect(() => {
     if (!isReady) return;
+    if (isAuthenticated && !restaurantReady) return;
     SplashScreen.hideAsync();
+
     if (!isAuthenticated && !onPublic) {
       router.replace('/login');
-    } else if (isAuthenticated && onLogin) {
-      router.replace('/(tabs)');
+      return;
     }
-  }, [isReady, isAuthenticated, onPublic, onLogin, router]);
+    if (isAuthenticated && onLogin) {
+      // En primer login con setup_completed=false, mandar al wizard. Si ya está completo, a tabs.
+      router.replace(needsSetup ? '/setup' : '/(tabs)');
+      return;
+    }
+    if (isAuthenticated && needsSetup && !onSetup) {
+      router.replace('/setup');
+    }
+  }, [isReady, isAuthenticated, restaurantReady, needsSetup, onPublic, onLogin, onSetup, router]);
 
-  // Bloquear el render de hijos hasta que la ruta y el estado de sesión casen.
-  // Si no, las pantallas protegidas montan brevemente antes del replace y
-  // disparan fetches/efectos que el usuario no autorizado no debería ver.
   const Spinner = (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: T.bg }}>
       <ActivityIndicator color={T.primary} />
     </View>
   );
   if (!isReady) return Spinner;
+  if (isAuthenticated && !restaurantReady) return Spinner;
   if (!isAuthenticated && !onPublic) return Spinner;
   if (isAuthenticated && onLogin) return Spinner;
+  if (isAuthenticated && needsSetup && !onSetup) return Spinner;
   return children;
 }
 
@@ -62,6 +79,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="login" options={{ animation: 'fade' }} />
             <Stack.Screen name="planes" options={{ animation: 'fade' }} />
+            <Stack.Screen name="setup" options={{ animation: 'fade' }} />
             <Stack.Screen
               name="products/[id]"
               options={{

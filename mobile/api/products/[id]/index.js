@@ -3,7 +3,7 @@
 // PATCH  → actualizar name | current_price | unit (si cambia precio, también log en product_prices)
 // DELETE → borrar producto (bloqueado si está usado en alguna receta)
 
-import { getAdminClient } from '../../_lib/supabase.js';
+import { getUserClient } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
 
 const ALLOWED_UNITS = new Set(['kg', 'L', 'ud']);
@@ -15,7 +15,7 @@ async function handler(req, res) {
     return res.status(400).json({ error: 'id requerido' });
   }
 
-  const supabase = getAdminClient();
+  const supabase = getUserClient(req.headers.authorization);
 
   if (req.method === 'GET') {
     return handleGet(supabase, id, res);

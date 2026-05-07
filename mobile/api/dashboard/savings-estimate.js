@@ -1,9 +1,9 @@
-import { getAdminClient } from '../_lib/supabase.js';
+import { getUserClient } from '../_lib/supabase.js';
 import { requireAuth } from '../_lib/auth.js';
 
-// Cache 24 h por instancia lambda
-let _cache = null;
-let _cacheAt = 0;
+// Cache 24 h por user (multi-tenant safe). En una instancia lambda compartida,
+// dos users distintos NO deben recibir la estimación cacheada del otro.
+const _cacheByUser = new Map();
 const CACHE_TTL = 24 * 60 * 60 * 1000;
 
 async function handler(req, res) {
@@ -11,8 +11,12 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
-  if (_cache && Date.now() - _cacheAt < CACHE_TTL) {
-    return res.status(200).json(_cache);
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Usuario no identificado' });
+
+  const cached = _cacheByUser.get(userId);
+  if (cached && Date.now() - cached.at < CACHE_TTL) {
+    return res.status(200).json(cached.data);
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -21,7 +25,7 @@ async function handler(req, res) {
   }
 
   try {
-    const supabase = getAdminClient();
+    const supabase = getUserClient(req.headers.authorization);
 
     const [
       { data: recipes },
@@ -115,8 +119,7 @@ Devuelve SOLO este JSON (sin texto adicional):
     while (result.monthly_trend.length < 6) result.monthly_trend.unshift(0);
     result.monthly_trend = result.monthly_trend.slice(-6).map(Number);
 
-    _cache = result;
-    _cacheAt = Date.now();
+    _cacheByUser.set(userId, { data: result, at: Date.now() });
 
     return res.status(200).json(result);
   } catch (err) {

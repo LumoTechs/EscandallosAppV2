@@ -3,7 +3,7 @@
 // Reutiliza el customer si ya hay subscripción registrada para evitar duplicados.
 
 import { compose, rateLimit, requireSameOrigin, requireAuth } from '../_lib/auth.js';
-import { getAdminClient } from '../_lib/supabase.js';
+import { getUserClient } from '../_lib/supabase.js';
 import { getStripe, priceForPlan, VALID_PLANS, appBaseUrl } from '../_lib/stripe.js';
 
 async function handler(req, res) {
@@ -25,15 +25,18 @@ async function handler(req, res) {
   const email = req.user?.email;
   if (!userId) return res.status(401).json({ error: 'Usuario no identificado' });
 
-  const supabase = getAdminClient();
+  const supabase = getUserClient(req.headers.authorization);
   const stripe = getStripe();
 
   try {
-    const { data: existing } = await supabase
+    // RLS limita a las subscriptions del restaurante del user. Buscamos cualquiera
+    // por si ya hay un customer_id reusable (evitar duplicar customers en Stripe).
+    const { data: existingRows } = await supabase
       .from('subscriptions')
       .select('stripe_customer_id')
-      .eq('user_id', userId)
-      .maybeSingle();
+      .not('stripe_customer_id', 'is', null)
+      .limit(1);
+    const existing = existingRows?.[0] || null;
 
     let customerId = existing?.stripe_customer_id || null;
     if (!customerId) {

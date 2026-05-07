@@ -1,4 +1,4 @@
-import { getAdminClient } from '../../_lib/supabase.js';
+import { getUserClient } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
 
 // Endpoint dual:
@@ -75,7 +75,7 @@ async function handler(req, res) {
   if (!id) return res.status(400).json({ error: 'id requerido' });
 
   try {
-    const supabase = getAdminClient();
+    const supabase = getUserClient(req.headers.authorization);
 
     if (id === 'by-supplier') {
       return topSuppliers(req, res, supabase);

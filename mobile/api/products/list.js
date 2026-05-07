@@ -3,7 +3,7 @@
 // GET  ?suppliers=true → lista de proveedores únicos + aliases
 // POST               → crear alias de proveedor { alias, canonical }
 // DELETE             → eliminar alias { alias }
-import { getAdminClient } from '../_lib/supabase.js';
+import { getUserClient } from '../_lib/supabase.js';
 import { requireAuth } from '../_lib/auth.js';
 
 // Clave de agrupación normalizada: minúsculas, sin formas legales, sin espacios extra.
@@ -18,7 +18,7 @@ function supplierKey(name) {
 }
 
 async function handler(req, res) {
-  const supabase = getAdminClient();
+  const supabase = getUserClient(req.headers.authorization);
 
   // POST → crear alias
   if (req.method === 'POST') {

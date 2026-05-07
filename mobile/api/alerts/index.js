@@ -2,11 +2,11 @@
 // POST → marcar alerta como leída { id }
 // DELETE → eliminar alerta { id }
 
-import { getAdminClient } from '../_lib/supabase.js';
+import { getUserClient } from '../_lib/supabase.js';
 import { requireAuth } from '../_lib/auth.js';
 
 async function handler(req, res) {
-  const supabase = getAdminClient();
+  const supabase = getUserClient(req.headers.authorization);
 
   // ── GET ──────────────────────────────────────────────
   if (req.method === 'GET') {
