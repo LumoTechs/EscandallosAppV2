@@ -421,68 +421,6 @@ export default function Products() {
             </View>
           )}
 
-          {/* Modal unificar proveedores */}
-          <Modal visible={mergeModal} animationType="slide" transparent onRequestClose={() => setMergeModal(false)}>
-            <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
-              <View style={{ backgroundColor: T.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <Text style={{ fontSize: 20, fontFamily: T.serif, color: T.ink, letterSpacing: -0.4 }}>Unificar proveedores</Text>
-                  <TouchableOpacity onPress={() => setMergeModal(false)} activeOpacity={0.7}
-                    style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, justifyContent: "center", alignItems: "center" }}>
-                    <X size={16} color={T.ink} strokeWidth={2} />
-                  </TouchableOpacity>
-                </View>
-                <Text style={{ fontSize: 13, color: T.inkSoft, marginBottom: 20 }}>
-                  El nombre alternativo pasará a tratarse como el proveedor principal, tanto en datos existentes como en nuevas facturas.
-                </Text>
-
-                <Text style={{ fontSize: 11, fontWeight: "700", color: T.muted, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
-                  Proveedor principal (nombre que se conserva)
-                </Text>
-                <TextInput
-                  value={mergeCanonical}
-                  onChangeText={setMergeCanonical}
-                  placeholder="Escribe o selecciona..."
-                  placeholderTextColor={T.muted}
-                  style={{ borderWidth: 1, borderColor: T.line, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: T.ink, backgroundColor: T.surface, marginBottom: 6 }}
-                />
-                {supplierNames.filter((s) => mergeCanonical && s.toLowerCase().includes(mergeCanonical.toLowerCase()) && s !== mergeCanonical).slice(0, 4).map((s) => (
-                  <TouchableOpacity key={s} onPress={() => setMergeCanonical(s)} style={{ paddingVertical: 9, paddingHorizontal: 14, borderRadius: 8, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, marginBottom: 4 }}>
-                    <Text style={{ fontSize: 14, color: T.ink }}>{s}</Text>
-                  </TouchableOpacity>
-                ))}
-
-                <Text style={{ fontSize: 11, fontWeight: "700", color: T.muted, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6, marginTop: 14 }}>
-                  Nombre alternativo (se unificará con el principal)
-                </Text>
-                <TextInput
-                  value={mergeAlias}
-                  onChangeText={setMergeAlias}
-                  placeholder="Escribe o selecciona..."
-                  placeholderTextColor={T.muted}
-                  style={{ borderWidth: 1, borderColor: T.line, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: T.ink, backgroundColor: T.surface, marginBottom: 6 }}
-                />
-                {supplierNames.filter((s) => mergeAlias && s.toLowerCase().includes(mergeAlias.toLowerCase()) && s !== mergeAlias && s !== mergeCanonical).slice(0, 4).map((s) => (
-                  <TouchableOpacity key={s} onPress={() => setMergeAlias(s)} style={{ paddingVertical: 9, paddingHorizontal: 14, borderRadius: 8, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, marginBottom: 4 }}>
-                    <Text style={{ fontSize: 14, color: T.ink }}>{s}</Text>
-                  </TouchableOpacity>
-                ))}
-
-                <TouchableOpacity
-                  onPress={handleMerge}
-                  disabled={mergeSaving}
-                  activeOpacity={0.88}
-                  style={{ backgroundColor: T.primary, borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 20, opacity: mergeSaving ? 0.7 : 1 }}
-                >
-                  {mergeSaving
-                    ? <ActivityIndicator color="#fff" />
-                    : <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>Unificar</Text>
-                  }
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Modal>
-
           {groups.length === 0 ? (
             <View style={{ paddingVertical: 48, alignItems: "center" }}>
               <EmptyBasket />
@@ -695,6 +633,68 @@ export default function Products() {
           )}
         </ScrollView>
       )}
+
+      {/* Modal unificar proveedores — debe estar en el nivel raíz para evitar errores de hidratación en web */}
+      <Modal visible={mergeModal} animationType="slide" transparent onRequestClose={() => setMergeModal(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: T.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <Text style={{ fontSize: 20, fontFamily: T.serif, color: T.ink, letterSpacing: -0.4 }}>Unificar proveedores</Text>
+              <TouchableOpacity onPress={() => setMergeModal(false)} activeOpacity={0.7}
+                style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, justifyContent: "center", alignItems: "center" }}>
+                <X size={16} color={T.ink} strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 13, color: T.inkSoft, marginBottom: 20 }}>
+              El nombre alternativo pasará a tratarse como el proveedor principal, tanto en datos existentes como en nuevas facturas.
+            </Text>
+
+            <Text style={{ fontSize: 11, fontWeight: "700", color: T.muted, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
+              Proveedor principal (nombre que se conserva)
+            </Text>
+            <TextInput
+              value={mergeCanonical}
+              onChangeText={setMergeCanonical}
+              placeholder="Escribe o selecciona..."
+              placeholderTextColor={T.muted}
+              style={{ borderWidth: 1, borderColor: T.line, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: T.ink, backgroundColor: T.surface, marginBottom: 6 }}
+            />
+            {supplierNames.filter((s) => mergeCanonical && s.toLowerCase().includes(mergeCanonical.toLowerCase()) && s !== mergeCanonical).slice(0, 4).map((s) => (
+              <TouchableOpacity key={s} onPress={() => setMergeCanonical(s)} style={{ paddingVertical: 9, paddingHorizontal: 14, borderRadius: 8, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, marginBottom: 4 }}>
+                <Text style={{ fontSize: 14, color: T.ink }}>{s}</Text>
+              </TouchableOpacity>
+            ))}
+
+            <Text style={{ fontSize: 11, fontWeight: "700", color: T.muted, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6, marginTop: 14 }}>
+              Nombre alternativo (se unificará con el principal)
+            </Text>
+            <TextInput
+              value={mergeAlias}
+              onChangeText={setMergeAlias}
+              placeholder="Escribe o selecciona..."
+              placeholderTextColor={T.muted}
+              style={{ borderWidth: 1, borderColor: T.line, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: T.ink, backgroundColor: T.surface, marginBottom: 6 }}
+            />
+            {supplierNames.filter((s) => mergeAlias && s.toLowerCase().includes(mergeAlias.toLowerCase()) && s !== mergeAlias && s !== mergeCanonical).slice(0, 4).map((s) => (
+              <TouchableOpacity key={s} onPress={() => setMergeAlias(s)} style={{ paddingVertical: 9, paddingHorizontal: 14, borderRadius: 8, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, marginBottom: 4 }}>
+                <Text style={{ fontSize: 14, color: T.ink }}>{s}</Text>
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity
+              onPress={handleMerge}
+              disabled={mergeSaving}
+              activeOpacity={0.88}
+              style={{ backgroundColor: T.primary, borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 20, opacity: mergeSaving ? 0.7 : 1 }}
+            >
+              {mergeSaving
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>Unificar</Text>
+              }
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
