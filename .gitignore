@@ -56,3 +56,6 @@ coverage/
 # Temp
 *.tmp
 .cache/
+
+# Local Claude Code skills/state — per-dev, no compartir
+.claude/
