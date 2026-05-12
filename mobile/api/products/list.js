@@ -23,9 +23,11 @@ async function handler(req, res) {
     if (alias.trim().toLowerCase() === canonical.trim().toLowerCase()) {
       return res.status(400).json({ error: 'Los dos proveedores deben ser diferentes' });
     }
+    // Delete primero para hacer upsert manual sin necesitar constraint UNIQUE
+    await supabase.from('supplier_aliases').delete().eq('alias', alias.trim());
     const { error } = await supabase
       .from('supplier_aliases')
-      .upsert({ alias: alias.trim(), canonical: canonical.trim() }, { onConflict: 'alias' });
+      .insert({ alias: alias.trim(), canonical: canonical.trim() });
     if (error) return res.status(500).json({ error: error.message });
     return res.status(200).json({ success: true });
   }

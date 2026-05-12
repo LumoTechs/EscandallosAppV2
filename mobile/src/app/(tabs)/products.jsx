@@ -118,10 +118,13 @@ export default function Products() {
   const [expanded, setExpanded] = useState(null);
   const [tab, setTab] = useState("productos");
   const [invoiceSort, setInvoiceSort] = useState("recientes");
+  const [mounted, setMounted] = useState(false);
   const [mergeModal, setMergeModal] = useState(false);
   const [mergeCanonical, setMergeCanonical] = useState("");
   const [mergeAlias, setMergeAlias] = useState("");
   const [mergeSaving, setMergeSaving] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   const supplierNames = useMemo(
     () => groups.map((g) => g.supplier).filter((s) => s && s !== "Sin proveedor").sort(),
@@ -632,8 +635,8 @@ export default function Products() {
         </ScrollView>
       )}
 
-      {/* Modal unificar proveedores */}
-      <Modal
+      {/* Modal unificar proveedores — solo en cliente para evitar hidratación #418 */}
+      {mounted && <Modal
         visible={mergeModal}
         animationType="fade"
         transparent
@@ -732,7 +735,7 @@ export default function Products() {
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
-      </Modal>
+      </Modal>}
     </View>
   );
 }
