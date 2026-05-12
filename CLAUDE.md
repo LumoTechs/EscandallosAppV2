@@ -15,21 +15,23 @@ SaaS de escandallos para restaurantes. Producto B2B de **LumoTech** (Luis autón
 - **Hosting**: Vercel team Lumo. ⚠️ **Hobby plan = máx 12 funciones serverless.** Vigilar al añadir APIs.
 - **Pagos**: Stripe TEST + 3 promo codes.
 
-## Estado actual (commit main `954cfb8` — 2026-05-07 noche)
+## Estado actual (main sincronizado — 2026-05-12)
 - ✅ Auth + Stripe + dashboard + invoice detail + multi-tenant base.
 - ✅ AI usage trackeado en tabla `ai_usage` (lo lee Centro Control Lumo).
-- ✅ Multi-tenant fase 1 BD lista en Supabase LumoTech: `restaurants` + `restaurant_members` + `restaurant_id NOT NULL` en 8 tablas + 32 RLS policies + trigger auto-onboarding.
+- ✅ Multi-tenant fase 1 BD lista en Supabase LumoTech: `restaurants` + `restaurant_members` + `restaurant_id NOT NULL` en tablas core + RLS policies por `user_restaurant_ids()` + trigger auto-onboarding.
+- ✅ Endpoints normales usan `getUserClient(jwt)` y respetan RLS. `service_role` queda limitado a webhook Stripe, storage de imágenes y logging `ai_usage`.
+- ✅ Setup wizard conectado: si `setup_completed=false`, AuthGate manda a `/setup`.
 - ✅ Demo `11111111-1111-1111-1111-111111111111` para techslumo@gmail.com.
 
 ## Pendiente backend (urgente)
-- **12 endpoints usan `service_role`** → migrar a `getUserClient(jwt)` para respetar RLS multi-tenant.
-- **Setup wizard** restaurante (onboarding inicial).
+- **Hardening multi-tenant**: mantener endpoints nuevos con `getUserClient(jwt)` y revisar excepciones `service_role` antes de añadir APIs.
+- **Setup wizard** restaurante: ya existe onboarding básico; pendiente hacerlo más completo si se quiere capturar carta/IVA/preferencias.
 - **E2E checkout Stripe** en TEST (verificar flujo completo con cada promo code).
 
 ## Backlog issues
-- ✅ Hechos: #1-#11, #16-#23, #28, #31-#33, #35, #37.
-- ⏳ Pendientes prioritarios: **#34** (pass admin), multi-tenant backend.
-- ⏳ Suelto: #12-#15, #24-#27, #29-#30, #36, #38, #39.
+- ✅ Hechos: #1-#23, #26, #28-#33, #35-#39.
+- ⏳ Pendientes prioritarios: **#34** (pass admin), E2E checkout Stripe, setup wizard avanzado.
+- ⏳ Suelto: #24 FK indexes (migración local creada), #25 índices unused.
 
 ## Stripe
 - Stripe TEST + 3 promo codes activos.
