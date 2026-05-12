@@ -1,0 +1,4 @@
+-- NEUTRALIZED: supplier_aliases ya existe con soporte multi-tenant completo.
+-- Tabla creada en 20260507120200_multitenant_aliases_and_default_restaurant.sql
+-- con PK (restaurant_id, alias), RLS tenant_select/insert/update/delete y trigger
+-- fill_restaurant_id_default. No se necesitan cambios adicionales.

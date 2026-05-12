@@ -17,20 +17,38 @@ function supplierKey(name) {
     .trim();
 }
 
+function isMissingSupplierAliasesTable(error) {
+  if (!error) return false;
+  return error.code === '42P01' || /supplier_aliases/i.test(error.message || '');
+}
+
 async function handler(req, res) {
   const supabase = getUserClient(req.headers.authorization);
 
-  // POST → crear alias
+  // POST → crear o actualizar alias de proveedor
   if (req.method === 'POST') {
     const { alias, canonical } = req.body || {};
     if (!alias || !canonical) return res.status(400).json({ error: 'alias y canonical son requeridos' });
-    if (alias.trim().toLowerCase() === canonical.trim().toLowerCase()) {
+    const aliasNormalized = supplierKey(alias);
+    const canonicalNormalized = supplierKey(canonical);
+    if (!aliasNormalized || aliasNormalized === '\x00') {
+      return res.status(400).json({ error: 'El alias no es válido' });
+    }
+    if (!canonicalNormalized || canonicalNormalized === '\x00') {
+      return res.status(400).json({ error: 'El proveedor principal no es válido' });
+    }
+    if (aliasNormalized === canonicalNormalized) {
       return res.status(400).json({ error: 'Los dos proveedores deben ser diferentes' });
     }
     const { error } = await supabase
       .from('supplier_aliases')
-      .upsert({ alias: alias.trim(), canonical: canonical.trim() }, { onConflict: 'alias' });
-    if (error) return res.status(500).json({ error: error.message });
+      .upsert({ alias: aliasNormalized, canonical: canonical.trim() }, { onConflict: 'restaurant_id,alias' });
+    if (error) {
+      if (isMissingSupplierAliasesTable(error)) {
+        return res.status(500).json({ error: 'Falta la tabla supplier_aliases en Supabase.' });
+      }
+      return res.status(500).json({ error: error.message });
+    }
     return res.status(200).json({ success: true });
   }
 
@@ -38,7 +56,7 @@ async function handler(req, res) {
   if (req.method === 'DELETE') {
     const { alias } = req.body || {};
     if (!alias) return res.status(400).json({ error: 'alias requerido' });
-    const { error } = await supabase.from('supplier_aliases').delete().eq('alias', alias.trim());
+    const { error } = await supabase.from('supplier_aliases').delete().eq('alias', supplierKey(alias));
     if (error) return res.status(500).json({ error: error.message });
     return res.status(200).json({ success: true });
   }
@@ -85,10 +103,18 @@ async function handler(req, res) {
     }));
 
     if (grouped) {
-      const { data: aliasRows } = await supabase.from('supplier_aliases').select('alias, canonical');
+      const { data: aliasRows, error: aliasError } = await supabase
+        .from('supplier_aliases')
+        .select('alias, canonical');
+      if (aliasError && !isMissingSupplierAliasesTable(aliasError)) {
+        console.error('Error fetching supplier aliases:', aliasError);
+        return res.status(500).json({ error: aliasError.message });
+      }
       const aliasMap = {};
-      for (const row of aliasRows || []) aliasMap[row.alias] = row.canonical;
-
+      for (const row of aliasRows || []) {
+        const k = supplierKey(row.alias);
+        if (k && k !== '\x00') aliasMap[k] = row.canonical.trim();
+      }
       const resolveSupplier = (name) => aliasMap[name] || aliasMap[supplierKey(name)] || name;
 
       const groups = {};
@@ -117,7 +143,7 @@ async function handler(req, res) {
           .order('created_at', { ascending: false });
 
         for (const inv of invoices || []) {
-          const key = supplierKey(inv.supplier);
+          const key = supplierKey(resolveSupplier(inv.supplier));
           if (groups[key]) groups[key].invoices.push(inv);
         }
 
