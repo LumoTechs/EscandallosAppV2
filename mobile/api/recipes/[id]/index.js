@@ -4,7 +4,7 @@
 //        y actualiza recipes.image_url. Devuelve { image_url }.
 
 import { getUserClient, getAdminClient } from '../../_lib/supabase.js';
-import { requireAuth } from '../../_lib/auth.js';
+import { requireAuth, rateLimit, compose } from '../../_lib/auth.js';
 
 async function getRecipe(req, res) {
   const { id } = req.query;
@@ -133,4 +133,4 @@ async function handler(req, res) {
   return res.status(405).json({ error: 'Método no permitido' });
 }
 
-export default requireAuth(handler);
+export default compose(rateLimit({ limit: 200, windowMs: 60 * 60 * 1000 }), requireAuth)(handler);

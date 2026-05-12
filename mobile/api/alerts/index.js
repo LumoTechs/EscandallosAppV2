@@ -3,7 +3,7 @@
 // DELETE → eliminar alerta { id }
 
 import { getUserClient } from '../_lib/supabase.js';
-import { requireAuth } from '../_lib/auth.js';
+import { requireAuth, rateLimit, compose } from '../_lib/auth.js';
 
 async function handler(req, res) {
   const supabase = getUserClient(req.headers.authorization);
@@ -12,15 +12,20 @@ async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const unreadOnly = req.query.unread_only === 'true';
+      const page = Math.max(0, parseInt(req.query.page || '0', 10));
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '50', 10)));
+      const from = page * limit;
+      const to = from + limit - 1;
 
       let q = supabase
         .from('alerts')
-        .select(`id, message, severity, read, created_at, product_id, recipe_id, products ( name ), recipes ( name )`)
-        .order('created_at', { ascending: false });
+        .select(`id, message, severity, read, created_at, product_id, recipe_id, products ( name ), recipes ( name )`, { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       if (unreadOnly) q = q.eq('read', false);
 
-      const { data, error } = await q;
+      const { data, error, count } = await q;
       if (error) return res.status(500).json({ error: error.message });
 
       const alerts = (data || []).map((a) => ({
@@ -35,7 +40,7 @@ async function handler(req, res) {
         recipe_name: a.recipes?.name || null,
       }));
 
-      return res.status(200).json({ alerts });
+      return res.status(200).json({ alerts, total: count ?? alerts.length, page, limit });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -86,4 +91,4 @@ async function handler(req, res) {
   return res.status(405).json({ error: 'Método no permitido' });
 }
 
-export default requireAuth(handler);
+export default compose(rateLimit({ limit: 200, windowMs: 60 * 60 * 1000 }), requireAuth)(handler);

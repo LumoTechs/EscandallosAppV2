@@ -1,5 +1,5 @@
 import { getUserClient } from '../../_lib/supabase.js';
-import { requireAuth } from '../../_lib/auth.js';
+import { requireAuth, rateLimit, compose } from '../../_lib/auth.js';
 
 // Endpoint dual:
 //   GET /api/invoices/by-supplier?limit=6  → top proveedores agregados por importe
@@ -88,4 +88,4 @@ async function handler(req, res) {
   }
 }
 
-export default requireAuth(handler);
+export default compose(rateLimit({ limit: 200, windowMs: 60 * 60 * 1000 }), requireAuth)(handler);

@@ -3,18 +3,24 @@
 // POST → crea receta + ingredientes (pseudo-tx: si fallan los items, borra la receta)
 
 import { getUserClient } from '../_lib/supabase.js';
-import { requireAuth } from '../_lib/auth.js';
+import { requireAuth, rateLimit, compose } from '../_lib/auth.js';
 
 async function listRecipes(req, res, supabase) {
   // Trae cada receta con sus ingredientes y el current_price del producto
   // para calcular total_cost y food_cost en JS. RLS filtra por restaurant.
-  const { data, error } = await supabase
+  const page = Math.max(0, parseInt(req.query.page || '0', 10));
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '50', 10)));
+  const from = page * limit;
+  const to = from + limit - 1;
+
+  const { data, error, count } = await supabase
     .from('recipes')
     .select(`
       id, name, sale_price, category, target_food_cost_percentage, image_url, created_at,
       recipe_ingredients ( quantity, products ( current_price ) )
-    `)
-    .order('created_at', { ascending: false });
+    `, { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(from, to);
 
   if (error) {
     console.error('Error fetching recipes:', error);
@@ -44,7 +50,7 @@ async function listRecipes(req, res, supabase) {
     };
   });
 
-  return res.status(200).json({ recipes: enriched });
+  return res.status(200).json({ recipes: enriched, total: count ?? enriched.length, page, limit });
 }
 
 async function createRecipe(req, res, supabase) {
@@ -138,4 +144,4 @@ async function handler(req, res) {
   return res.status(405).json({ error: 'Método no permitido' });
 }
 
-export default requireAuth(handler);
+export default compose(rateLimit({ limit: 200, windowMs: 60 * 60 * 1000 }), requireAuth)(handler);

@@ -4,7 +4,7 @@
 // POST               → crear alias de proveedor { alias, canonical }
 // DELETE             → eliminar alias { alias }
 import { getUserClient } from '../_lib/supabase.js';
-import { requireAuth } from '../_lib/auth.js';
+import { requireAuth, rateLimit, compose } from '../_lib/auth.js';
 
 // Clave de agrupación normalizada: minúsculas, sin formas legales, sin espacios extra.
 function supplierKey(name) {
@@ -76,18 +76,27 @@ async function handler(req, res) {
 
     const search = req.query.search;
     const grouped = req.query.grouped === 'true';
+    const page = Math.max(0, parseInt(req.query.page || '0', 10));
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit || '100', 10)));
+    const from = page * limit;
+    const to = from + limit - 1;
 
     let query = supabase
       .from('products')
-      .select('id, name, unit, current_price, supplier, created_at')
+      .select('id, name, unit, current_price, supplier, created_at', { count: 'exact' })
       .order('supplier', { ascending: true, nullsFirst: false })
       .order('name', { ascending: true });
 
     if (search && search.trim()) {
-      query = query.ilike('name', `%${search.trim()}%`);
+      const s = search.trim().replace(/%/g, '\\%').replace(/_/g, '\\_');
+      query = query.ilike('name', `%${s}%`);
     }
 
-    const { data, error } = await query;
+    if (!grouped) {
+      query = query.range(from, to);
+    }
+
+    const { data, error, count } = await query;
     if (error) {
       console.error('Error fetching products:', error);
       return res.status(500).json({ error: error.message });
@@ -175,11 +184,11 @@ async function handler(req, res) {
       return res.status(200).json({ groups: result });
     }
 
-    return res.status(200).json({ products });
+    return res.status(200).json({ products, total: count ?? products.length, page, limit });
   } catch (err) {
     console.error('Unexpected error:', err);
     return res.status(500).json({ error: err.message });
   }
 }
 
-export default requireAuth(handler);
+export default compose(rateLimit({ limit: 200, windowMs: 60 * 60 * 1000 }), requireAuth)(handler);

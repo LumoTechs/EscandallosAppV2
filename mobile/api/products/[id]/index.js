@@ -4,7 +4,7 @@
 // DELETE → borrar producto (bloqueado si está usado en alguna receta)
 
 import { getUserClient } from '../../_lib/supabase.js';
-import { requireAuth } from '../../_lib/auth.js';
+import { requireAuth, rateLimit, compose } from '../../_lib/auth.js';
 
 const ALLOWED_UNITS = new Set(['kg', 'L', 'ud']);
 
@@ -195,4 +195,4 @@ async function handleDelete(supabase, id, res) {
   }
 }
 
-export default requireAuth(handler);
+export default compose(rateLimit({ limit: 200, windowMs: 60 * 60 * 1000 }), requireAuth)(handler);

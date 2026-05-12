@@ -1,5 +1,5 @@
 import { getUserClient } from '../_lib/supabase.js';
-import { requireAuth } from '../_lib/auth.js';
+import { requireAuth, rateLimit, compose } from '../_lib/auth.js';
 import { logAiUsage, resolveRestaurantId } from '../_lib/aiUsage.js';
 
 // Cache 24 h por user (multi-tenant safe). En una instancia lambda compartida,
@@ -142,4 +142,4 @@ Devuelve SOLO este JSON (sin texto adicional):
   }
 }
 
-export default requireAuth(handler);
+export default compose(rateLimit({ limit: 10, windowMs: 60 * 60 * 1000 }), requireAuth)(handler);
