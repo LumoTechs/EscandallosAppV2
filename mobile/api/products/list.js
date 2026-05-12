@@ -23,11 +23,13 @@ async function handler(req, res) {
     if (alias.trim().toLowerCase() === canonical.trim().toLowerCase()) {
       return res.status(400).json({ error: 'Los dos proveedores deben ser diferentes' });
     }
+    const { data: restaurant } = await supabase.from('restaurants').select('id').eq('user_id', req.user.id).maybeSingle();
+    if (!restaurant) return res.status(400).json({ error: 'Restaurante no encontrado' });
     // Delete primero para hacer upsert manual sin necesitar constraint UNIQUE
-    await supabase.from('supplier_aliases').delete().eq('alias', alias.trim());
+    await supabase.from('supplier_aliases').delete().eq('alias', alias.trim()).eq('restaurant_id', restaurant.id);
     const { error } = await supabase
       .from('supplier_aliases')
-      .insert({ alias: alias.trim(), canonical: canonical.trim() });
+      .insert({ alias: alias.trim(), canonical: canonical.trim(), restaurant_id: restaurant.id });
     if (error) return res.status(500).json({ error: error.message });
     return res.status(200).json({ success: true });
   }
@@ -35,7 +37,9 @@ async function handler(req, res) {
   if (req.method === 'DELETE') {
     const { alias } = req.body || {};
     if (!alias) return res.status(400).json({ error: 'alias requerido' });
-    const { error } = await supabase.from('supplier_aliases').delete().eq('alias', alias.trim());
+    const { data: restaurant } = await supabase.from('restaurants').select('id').eq('user_id', req.user.id).maybeSingle();
+    if (!restaurant) return res.status(400).json({ error: 'Restaurante no encontrado' });
+    const { error } = await supabase.from('supplier_aliases').delete().eq('alias', alias.trim()).eq('restaurant_id', restaurant.id);
     if (error) return res.status(500).json({ error: error.message });
     return res.status(200).json({ success: true });
   }
@@ -79,7 +83,10 @@ async function handler(req, res) {
       // Leer aliases manuales para unificar proveedores con nombres distintos.
       // Se construyen dos mapas: exacto (por nombre tal cual) y normalizado (por supplierKey)
       // para cubrir variantes de mayúsculas/minúsculas y formas legales.
-      const { data: aliasRows } = await supabase.from('supplier_aliases').select('alias, canonical');
+      const { data: restaurantRow } = await supabase.from('restaurants').select('id').eq('user_id', req.user.id).maybeSingle();
+      let aliasQuery = supabase.from('supplier_aliases').select('alias, canonical');
+      if (restaurantRow?.id) aliasQuery = aliasQuery.eq('restaurant_id', restaurantRow.id);
+      const { data: aliasRows } = await aliasQuery;
       const exactAliasMap = {};
       const normalizedAliasMap = {};
       for (const row of aliasRows || []) {

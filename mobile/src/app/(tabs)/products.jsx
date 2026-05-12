@@ -685,7 +685,7 @@ export default function Products() {
                 style={{ borderWidth: 1, borderColor: T.line, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: T.ink, backgroundColor: T.surface, marginBottom: 6 }}
               />
               {supplierNames
-                .filter((s) => mergeCanonical.length > 0 && s.toLowerCase().includes(mergeCanonical.toLowerCase()) && s !== mergeCanonical)
+                .filter((s) => mergeCanonical.length > 0 && s.toLowerCase().includes(mergeCanonical.toLowerCase()) && s.toLowerCase() !== mergeCanonical.toLowerCase())
                 .slice(0, 4)
                 .map((s) => (
                   <TouchableOpacity
@@ -709,7 +709,7 @@ export default function Products() {
                 style={{ borderWidth: 1, borderColor: T.line, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: T.ink, backgroundColor: T.surface, marginBottom: 6 }}
               />
               {supplierNames
-                .filter((s) => mergeAlias.length > 0 && s.toLowerCase().includes(mergeAlias.toLowerCase()) && s !== mergeAlias && s !== mergeCanonical)
+                .filter((s) => mergeAlias.length > 0 && s.toLowerCase().includes(mergeAlias.toLowerCase()) && s.toLowerCase() !== mergeAlias.toLowerCase() && s.toLowerCase() !== mergeCanonical.toLowerCase())
                 .slice(0, 4)
                 .map((s) => (
                   <TouchableOpacity
