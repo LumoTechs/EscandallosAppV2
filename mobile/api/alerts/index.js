@@ -15,7 +15,7 @@ async function handler(req, res) {
 
       let q = supabase
         .from('alerts')
-        .select(`id, message, severity, read, created_at, product_id, recipe_id, products ( name )`)
+        .select(`id, message, severity, read, created_at, product_id, recipe_id, products ( name ), recipes ( name )`)
         .order('created_at', { ascending: false });
 
       if (unreadOnly) q = q.eq('read', false);
@@ -32,6 +32,7 @@ async function handler(req, res) {
         product_id: a.product_id,
         recipe_id: a.recipe_id,
         product_name: a.products?.name || null,
+        recipe_name: a.recipes?.name || null,
       }));
 
       return res.status(200).json({ alerts });

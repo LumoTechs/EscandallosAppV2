@@ -17,7 +17,7 @@ import { ChefHat, MessageCircle, Sparkles } from "lucide-react-native";
 import { T } from "../theme";
 import { useSession } from "../utils/auth";
 
-const WHATSAPP_NUMBER = "34647523682";
+const WHATSAPP_NUMBER = process.env.EXPO_PUBLIC_OWNER_WHATSAPP || "34647523682";
 const WHATSAPP_TEXT = encodeURIComponent(
   "Hola Luis, me gustaría probar Lumotech para mi restaurante."
 );

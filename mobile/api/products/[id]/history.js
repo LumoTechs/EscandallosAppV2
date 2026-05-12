@@ -51,8 +51,8 @@ async function handler(req, res) {
 
     const stats = history.length > 0
       ? {
-          min: Math.min(...history.map((h) => h.price)),
-          max: Math.max(...history.map((h) => h.price)),
+          min: history.reduce((m, h) => Math.min(m, h.price), Infinity),
+          max: history.reduce((m, h) => Math.max(m, h.price), -Infinity),
           points: history.length,
         }
       : null;

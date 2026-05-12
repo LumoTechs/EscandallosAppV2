@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useSession } from '../utils/auth';
+import { useSession, AuthProvider } from '../utils/auth';
 import { useCurrentRestaurant } from '../utils/restaurant/useCurrentRestaurant';
 import { fetchLegalAcceptance, isLegalAcceptanceComplete } from '../utils/legalAcceptance';
 import { T } from '../theme';
@@ -114,26 +114,35 @@ function AuthGate({ children }) {
 
 export default function RootLayout() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <AuthGate>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="login" options={{ animation: 'fade' }} />
-            <Stack.Screen name="planes" options={{ animation: 'fade' }} />
-            <Stack.Screen name="setup" options={{ animation: 'fade' }} />
-            <Stack.Screen name="legal" options={{ animation: 'slide_from_right' }} />
-            <Stack.Screen name="legal-acceptance" options={{ animation: 'slide_from_right' }} />
-            <Stack.Screen
-              name="products/[id]"
-              options={{
-                presentation: 'card',
-                animation: 'slide_from_right',
-              }}
-            />
-          </Stack>
-        </AuthGate>
-      </GestureHandlerRootView>
-    </QueryClientProvider>
+    <AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <AuthGate>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="login" options={{ animation: 'fade' }} />
+              <Stack.Screen name="planes" options={{ animation: 'fade' }} />
+              <Stack.Screen name="setup" options={{ animation: 'fade' }} />
+              <Stack.Screen name="legal" options={{ animation: 'slide_from_right' }} />
+              <Stack.Screen name="legal-acceptance" options={{ animation: 'slide_from_right' }} />
+              <Stack.Screen
+                name="products/[id]"
+                options={{
+                  presentation: 'card',
+                  animation: 'slide_from_right',
+                }}
+              />
+              <Stack.Screen
+                name="recipes/[id]"
+                options={{
+                  presentation: 'card',
+                  animation: 'slide_from_right',
+                }}
+              />
+            </Stack>
+          </AuthGate>
+        </GestureHandlerRootView>
+      </QueryClientProvider>
+    </AuthProvider>
   );
 }
