@@ -52,7 +52,12 @@ function AuthGate({ children }) {
 
     async function loadLegalAcceptance() {
       if (!isReady || !isAuthenticated || !user?.id) {
-        if (!cancelled) { setLegalAccepted(false); setLegalReady(true); }
+        if (!cancelled) {
+          setLegalAccepted(false);
+          setLegalReady(true);
+          // Reset ref so the same user re-logging in doesn't skip the fetch
+          if (!isAuthenticated) legalCheckedForRef.current = null;
+        }
         return;
       }
       if (!restaurantReady || needsSetup) return;
