@@ -15,6 +15,29 @@ function supplierKey(name) {
 }
 
 async function handler(req, res) {
+  const supabase = getAdminClient();
+
+  if (req.method === 'POST') {
+    const { alias, canonical } = req.body || {};
+    if (!alias || !canonical) return res.status(400).json({ error: 'alias y canonical son requeridos' });
+    if (alias.trim().toLowerCase() === canonical.trim().toLowerCase()) {
+      return res.status(400).json({ error: 'Los dos proveedores deben ser diferentes' });
+    }
+    const { error } = await supabase
+      .from('supplier_aliases')
+      .upsert({ alias: alias.trim(), canonical: canonical.trim() }, { onConflict: 'alias' });
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json({ success: true });
+  }
+
+  if (req.method === 'DELETE') {
+    const { alias } = req.body || {};
+    if (!alias) return res.status(400).json({ error: 'alias requerido' });
+    const { error } = await supabase.from('supplier_aliases').delete().eq('alias', alias.trim());
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json({ success: true });
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método no permitido' });
   }
@@ -51,15 +74,30 @@ async function handler(req, res) {
     }));
 
     if (grouped) {
-      // Agrupar por clave normalizada: fusiona variantes del mismo proveedor
-      // (ej. "MAKRO S.A." y "Makro" van al mismo grupo)
+      // Leer aliases manuales para unificar proveedores con nombres distintos.
+      // Se construyen dos mapas: exacto (por nombre tal cual) y normalizado (por supplierKey)
+      // para cubrir variantes de mayúsculas/minúsculas y formas legales.
+      const { data: aliasRows } = await supabase.from('supplier_aliases').select('alias, canonical');
+      const exactAliasMap = {};
+      const normalizedAliasMap = {};
+      for (const row of aliasRows || []) {
+        exactAliasMap[row.alias.trim()] = row.canonical.trim();
+        normalizedAliasMap[supplierKey(row.alias.trim())] = row.canonical.trim();
+      }
+      const resolveSupplier = (name) =>
+        exactAliasMap[name] ||
+        exactAliasMap[name.trim()] ||
+        normalizedAliasMap[supplierKey(name)] ||
+        name;
+
       const groups = {};
       for (const p of products) {
-        const key = supplierKey(p.supplier);
+        const resolved = resolveSupplier(p.supplier);
+        const key = supplierKey(resolved);
         if (!groups[key]) {
           groups[key] = {
-            supplier: p.supplier,      // nombre a mostrar: primer valor visto
-            rawNames: new Set(),       // todas las variantes para buscar facturas
+            supplier: resolved,
+            rawNames: new Set(),
             products: [],
             invoices: [],
           };
