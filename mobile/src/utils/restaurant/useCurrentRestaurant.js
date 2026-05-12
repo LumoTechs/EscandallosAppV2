@@ -6,7 +6,7 @@ import { useSession } from '../auth';
 async function fetchCurrentRestaurant() {
   const { data, error } = await supabase
     .from('restaurants')
-    .select('id, name, owner_user_id, setup_completed, created_at')
+    .select('id, name, owner_user_id, setup_completed, business_type, target_food_cost_percentage, onboarding_goal, created_at')
     .limit(1)
     .maybeSingle();
   if (error) throw error;
