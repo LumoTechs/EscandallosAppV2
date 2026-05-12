@@ -7,6 +7,7 @@ import { Check } from 'lucide-react-native';
 import { T } from '../theme';
 import { useSession } from '../utils/auth';
 import { LEGAL_POLICIES_VERSION, saveLegalAcceptance } from '../utils/legalAcceptance';
+import { useLegalAcceptanceCtx } from '../utils/legalAcceptanceContext';
 
 const POLICY_ITEMS = [
   { key: 'privacy', label: 'He leído y acepto la Política de privacidad', tab: 'privacidad' },
@@ -18,6 +19,7 @@ export default function LegalAcceptance() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useSession();
+  const { setLegalAccepted } = useLegalAcceptanceCtx();
   const [checks, setChecks] = useState({
     privacy: false,
     terms: false,
@@ -46,6 +48,7 @@ export default function LegalAcceptance() {
     setSaving(true);
     try {
       await saveLegalAcceptance(user.id);
+      setLegalAccepted(true);
       router.replace('/(tabs)');
     } catch (e) {
       setError(e?.message || 'No se pudo guardar la aceptación de políticas.');

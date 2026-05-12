@@ -1,12 +1,13 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useSession, AuthProvider } from '../utils/auth';
 import { useCurrentRestaurant } from '../utils/restaurant/useCurrentRestaurant';
 import { fetchLegalAcceptance, isLegalAcceptanceComplete } from '../utils/legalAcceptance';
+import { LegalAcceptanceContext } from '../utils/legalAcceptanceContext';
 import { T } from '../theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -40,7 +41,7 @@ function AuthGate({ children }) {
   const needsSetup = isAuthenticated && restaurant && restaurant.setup_completed === false;
 
   const [legalReady, setLegalReady] = useState(false);
-  const [legalAccepted, setLegalAccepted] = useState(false);
+  const { legalAccepted, setLegalAccepted } = useContext(LegalAcceptanceContext);
 
   // Legal acceptance check — solo después de que el setup esté completo
   useEffect(() => {
@@ -113,34 +114,37 @@ function AuthGate({ children }) {
 }
 
 export default function RootLayout() {
+  const [legalAccepted, setLegalAccepted] = useState(false);
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <AuthGate>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="login" options={{ animation: 'fade' }} />
-              <Stack.Screen name="planes" options={{ animation: 'fade' }} />
-              <Stack.Screen name="setup" options={{ animation: 'fade' }} />
-              <Stack.Screen name="legal" options={{ animation: 'slide_from_right' }} />
-              <Stack.Screen name="legal-acceptance" options={{ animation: 'slide_from_right' }} />
-              <Stack.Screen
-                name="products/[id]"
-                options={{
-                  presentation: 'card',
-                  animation: 'slide_from_right',
-                }}
-              />
-              <Stack.Screen
-                name="recipes/[id]"
-                options={{
-                  presentation: 'card',
-                  animation: 'slide_from_right',
-                }}
-              />
-            </Stack>
-          </AuthGate>
+          <LegalAcceptanceContext.Provider value={{ legalAccepted, setLegalAccepted }}>
+            <AuthGate>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="login" options={{ animation: 'fade' }} />
+                <Stack.Screen name="planes" options={{ animation: 'fade' }} />
+                <Stack.Screen name="setup" options={{ animation: 'fade' }} />
+                <Stack.Screen name="legal" options={{ animation: 'slide_from_right' }} />
+                <Stack.Screen name="legal-acceptance" options={{ animation: 'slide_from_right' }} />
+                <Stack.Screen
+                  name="products/[id]"
+                  options={{
+                    presentation: 'card',
+                    animation: 'slide_from_right',
+                  }}
+                />
+                <Stack.Screen
+                  name="recipes/[id]"
+                  options={{
+                    presentation: 'card',
+                    animation: 'slide_from_right',
+                  }}
+                />
+              </Stack>
+            </AuthGate>
+          </LegalAcceptanceContext.Provider>
         </GestureHandlerRootView>
       </QueryClientProvider>
     </AuthProvider>
