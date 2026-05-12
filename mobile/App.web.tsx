@@ -41,8 +41,8 @@ const Wrapper = memo(() => {
           frame: {
             x: 0,
             y: 0,
-            width: typeof window === 'undefined' ? 390 : window.innerWidth,
-            height: typeof window === 'undefined' ? 844 : window.innerHeight,
+            width: 390,
+            height: 844,
           },
         }}
       >

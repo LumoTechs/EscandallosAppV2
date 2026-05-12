@@ -6,12 +6,15 @@ export {
 	initialWindowMetrics,
 } from 'react-native-safe-area-context/lib/commonjs';
 import { useSafeAreaInsets as useNativeSafeAreaInsets } from 'react-native-safe-area-context/lib/commonjs';
+import { useState, useEffect } from 'react';
 
 export { SafeAreaView } from './SafeAreaView.web';
 
 export const useSafeAreaInsets = () => {
-	const isTabletAndAbove =
-		typeof window !== 'undefined' ? window.self !== window.top : true;
+	const [isTabletAndAbove, setIsTabletAndAbove] = useState(true);
+	useEffect(() => {
+		setIsTabletAndAbove(window.self !== window.top);
+	}, []);
 	const insets = useNativeSafeAreaInsets();
 	if (isTabletAndAbove) {
 		return {

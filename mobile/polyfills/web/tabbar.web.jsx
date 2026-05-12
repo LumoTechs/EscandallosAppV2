@@ -1,11 +1,14 @@
 import { Tabs as ExpoTabs } from 'expo-router/build/layouts/Tabs';
 import { merge } from 'lodash';
-import { forwardRef } from 'react';
+import { forwardRef, useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 export const BASE_TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 49 : 56;
 
 export const Tabs = forwardRef((props, ref) => {
-  const isInIframe = typeof window !== 'undefined' ? window.self !== window.top : false;
+  const [isInIframe, setIsInIframe] = useState(false);
+  useEffect(() => {
+    setIsInIframe(window.self !== window.top);
+  }, []);
   const height = props.screenOptions.tabBarStyle?.height || (BASE_TAB_BAR_HEIGHT + (isInIframe ? 34 : 0));
 
   return (
