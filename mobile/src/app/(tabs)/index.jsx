@@ -21,10 +21,12 @@ import Svg, {
   LinearGradient,
   Stop,
 } from "react-native-svg";
-import { ArrowUpRight, TrendingUp, ChefHat, Sparkles, Flame, LogOut } from "lucide-react-native";
+import { ArrowUpRight, TrendingUp, ChefHat, Sparkles, Flame, LogOut, LifeBuoy } from "lucide-react-native";
 import { T } from "../../theme";
+import { SupportTicketForm } from "../../components/support/SupportTicketForm";
 import { apiFetch } from "../../utils/apiFetch";
 import { useSession } from "../../utils/auth";
+import { useCurrentRestaurant } from "../../utils/restaurant/useCurrentRestaurant";
 
 const RECIPE_CATEGORIES = [
   { key: "entrantes",   color: "#4F7A3C", soft: "#ECF3E5", label: "Entrantes" },
@@ -197,6 +199,7 @@ export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { signOut, isReady, isAuthenticated } = useSession();
+  const { data: restaurant } = useCurrentRestaurant();
   const { width: winWidth } = useWindowDimensions();
   const topCols = winWidth >= 1100 ? 4 : winWidth >= 760 ? 3 : 2;
   const [alerts, setAlerts] = useState([]);
@@ -729,6 +732,48 @@ export default function Dashboard() {
                 </View>
                 <ArrowUpRight color={T.ink} size={18} strokeWidth={2} />
               </TouchableOpacity>
+            </View>
+
+            <View
+              style={{
+                backgroundColor: T.surface,
+                borderColor: T.line,
+                borderWidth: 1,
+                borderRadius: 16,
+                padding: 18,
+                marginTop: 16,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                  marginBottom: 12,
+                }}
+              >
+                <View
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: T.infoSoft,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <LifeBuoy size={17} color={T.info} strokeWidth={2.1} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 17, fontFamily: T.serif, color: T.ink, letterSpacing: -0.2 }}>
+                    Contactar con soporte
+                  </Text>
+                  <Text style={{ fontSize: 12, color: T.inkSoft, lineHeight: 17, marginTop: 2 }}>
+                    Cuéntanos qué ocurre y revisamos el contexto técnico si lo autorizas.
+                  </Text>
+                </View>
+              </View>
+              <SupportTicketForm restaurantId={restaurant?.id} />
             </View>
           </View>
         </ScrollView>

@@ -15,6 +15,9 @@ import { Camera, FileText, Check, AlertCircle, X, Plus } from "lucide-react-nati
 import Svg, { Path, Rect, Circle, Line } from "react-native-svg";
 import { T } from "../../theme";
 import { apiFetch } from "../../utils/apiFetch";
+import { useCurrentRestaurant } from "../../utils/restaurant/useCurrentRestaurant";
+import { trackError } from "../../utils/telemetry/trackError";
+import { trackEvent } from "../../utils/telemetry/trackEvent";
 
 function InvoiceIllustration() {
   return (
@@ -35,6 +38,7 @@ function InvoiceIllustration() {
 
 export default function UploadInvoice() {
   const insets = useSafeAreaInsets();
+  const { data: restaurant } = useCurrentRestaurant();
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [results, setResults] = useState([]);
@@ -81,9 +85,22 @@ export default function UploadInvoice() {
 
   const processImages = async (mode) => {
     if (images.length === 0) return;
+    const restaurantId = restaurant?.id ?? null;
+    const baseMetadata = {
+      mode,
+      image_count: images.length,
+    };
     setError(null);
     setResults([]);
     setProcessing(true);
+    trackEvent("invoice_upload_started", {
+      restaurantId,
+      metadata: baseMetadata,
+    });
+    trackEvent("ocr_started", {
+      restaurantId,
+      metadata: baseMetadata,
+    });
 
     if (mode === "multipage") {
       setProgress({ current: 1, total: 1 });
@@ -96,12 +113,55 @@ export default function UploadInvoice() {
         });
         if (!apiResponse.ok) {
           const errData = await apiResponse.json().catch(() => ({}));
-          setResults([{ error: errData.error || `Error ${apiResponse.status}` }]);
+          const message = errData.error || `Error ${apiResponse.status}`;
+          setResults([{ error: message }]);
+          trackEvent("ocr_failed", {
+            restaurantId,
+            metadata: { ...baseMetadata, status: apiResponse.status },
+          });
+          trackEvent("invoice_upload_failed", {
+            restaurantId,
+            metadata: { ...baseMetadata, status: apiResponse.status },
+          });
+          trackError({
+            restaurantId,
+            errorType: "invoice_process_http_error",
+            message,
+            endpoint: "/api/invoices/process",
+            metadata: { ...baseMetadata, status: apiResponse.status },
+          });
         } else {
-          setResults([await apiResponse.json()]);
+          const result = await apiResponse.json();
+          setResults([result]);
+          const resultMetadata = buildInvoiceResultMetadata(result, baseMetadata);
+          trackEvent("ocr_completed", {
+            restaurantId,
+            metadata: resultMetadata,
+          });
+          trackEvent("invoice_upload_completed", {
+            restaurantId,
+            metadata: resultMetadata,
+          });
         }
       } catch (err) {
-        setResults([{ error: err.message || "Error al procesar" }]);
+        const message = err.message || "Error al procesar";
+        setResults([{ error: message }]);
+        trackEvent("ocr_failed", {
+          restaurantId,
+          metadata: baseMetadata,
+        });
+        trackEvent("invoice_upload_failed", {
+          restaurantId,
+          metadata: baseMetadata,
+        });
+        trackError({
+          restaurantId,
+          errorType: "invoice_process_exception",
+          message,
+          stack: err.stack,
+          endpoint: "/api/invoices/process",
+          metadata: baseMetadata,
+        });
       }
       setProcessing(false);
       return;
@@ -122,15 +182,67 @@ export default function UploadInvoice() {
         });
         if (!apiResponse.ok) {
           const errData = await apiResponse.json().catch(() => ({}));
-          collected.push({ error: errData.error || `Error ${apiResponse.status}` });
+          const message = errData.error || `Error ${apiResponse.status}`;
+          collected.push({ error: message });
+          trackError({
+            restaurantId,
+            errorType: "invoice_process_http_error",
+            message,
+            endpoint: "/api/invoices/process",
+            metadata: {
+              ...baseMetadata,
+              status: apiResponse.status,
+              image_index: i + 1,
+            },
+          });
         } else {
           collected.push(await apiResponse.json());
         }
       } catch (err) {
-        collected.push({ error: err.message || "Error al procesar" });
+        const message = err.message || "Error al procesar";
+        collected.push({ error: message });
+        trackError({
+          restaurantId,
+          errorType: "invoice_process_exception",
+          message,
+          stack: err.stack,
+          endpoint: "/api/invoices/process",
+          metadata: {
+            ...baseMetadata,
+            image_index: i + 1,
+          },
+        });
       }
     }
     setResults(collected);
+    const successCount = collected.filter((item) => !item.error).length;
+    const failureCount = collected.length - successCount;
+    const batchMetadata = {
+      ...baseMetadata,
+      success_count: successCount,
+      failure_count: failureCount,
+      saved_item_count: collected.reduce((sum, item) => sum + (item.saved_items?.length || 0), 0),
+    };
+    if (successCount > 0) {
+      trackEvent("ocr_completed", {
+        restaurantId,
+        metadata: batchMetadata,
+      });
+      trackEvent("invoice_upload_completed", {
+        restaurantId,
+        metadata: batchMetadata,
+      });
+    }
+    if (failureCount > 0) {
+      trackEvent("ocr_failed", {
+        restaurantId,
+        metadata: batchMetadata,
+      });
+      trackEvent("invoice_upload_failed", {
+        restaurantId,
+        metadata: batchMetadata,
+      });
+    }
     setProcessing(false);
   };
 
@@ -519,4 +631,13 @@ export default function UploadInvoice() {
       </Modal>
     </View>
   );
+}
+
+function buildInvoiceResultMetadata(result, baseMetadata) {
+  return {
+    ...baseMetadata,
+    invoice_id: result?.invoice?.id || result?.invoice_id || null,
+    saved_item_count: result?.saved_items?.length || 0,
+    alert_count: result?.alerts?.length || 0,
+  };
 }

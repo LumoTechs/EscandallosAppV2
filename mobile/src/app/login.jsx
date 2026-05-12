@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChefHat, MessageCircle, Sparkles } from "lucide-react-native";
 import { T } from "../theme";
 import { useSession } from "../utils/auth";
+import { trackEvent } from "../utils/telemetry/trackEvent";
 
 const WHATSAPP_NUMBER = process.env.EXPO_PUBLIC_OWNER_WHATSAPP || "34647523682";
 const WHATSAPP_TEXT = encodeURIComponent(
@@ -47,6 +48,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       await signIn(email, password);
+      trackEvent("user_logged_in");
     } catch (e) {
       const raw = e?.message || "";
       const msg = raw.toLowerCase().includes("failed to fetch") || raw.toLowerCase().includes("networkerror")

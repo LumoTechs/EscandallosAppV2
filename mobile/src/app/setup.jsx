@@ -27,6 +27,7 @@ import {
 import { T } from '../theme';
 import { supabase } from '../utils/supabase';
 import { useCurrentRestaurant } from '../utils/restaurant/useCurrentRestaurant';
+import { trackEvent } from '../utils/telemetry/trackEvent';
 
 const BUSINESS_TYPES = [
   { key: 'restaurant', label: 'Restaurante', hint: 'Carta completa y proveedores recurrentes' },
@@ -160,6 +161,7 @@ export default function Setup() {
   const [targetFoodCost, setTargetFoodCost] = useState(35);
   const [goal, setGoal] = useState('invoice');
   const [saving, setSaving] = useState(false);
+  const setupStartTracked = React.useRef(false);
 
   React.useEffect(() => {
     if (!restaurant) return;
@@ -170,6 +172,17 @@ export default function Setup() {
     }
     if (restaurant.onboarding_goal) setGoal(restaurant.onboarding_goal);
   }, [restaurant, name]);
+
+  React.useEffect(() => {
+    if (!restaurant || setupStartTracked.current) return;
+    setupStartTracked.current = true;
+    trackEvent('setup_started', {
+      restaurantId: restaurant.id,
+      metadata: {
+        setup_completed: Boolean(restaurant.setup_completed),
+      },
+    });
+  }, [restaurant]);
 
   if (isLoading) {
     return (
@@ -223,6 +236,14 @@ export default function Setup() {
     try {
       await saveProgress({ complete: true });
       await queryClient.invalidateQueries({ queryKey: ['current-restaurant'] });
+      trackEvent('setup_completed', {
+        restaurantId: restaurant.id,
+        metadata: {
+          business_type: businessType,
+          target_food_cost_percentage: targetFoodCost,
+          onboarding_goal: goal,
+        },
+      });
       router.replace(route);
     } catch (err) {
       Alert.alert('Error', err.message || 'No se pudo completar el setup');
