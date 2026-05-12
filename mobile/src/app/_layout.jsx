@@ -100,8 +100,8 @@ function AuthGate({ children }) {
       return;
     }
 
-    // 3. Todo OK -> tabs
-    if (onLogin || onLegalAcceptance) router.replace('/(tabs)');
+    // 3. Todo OK -> tabs (sólo si legal ya aceptado)
+    if (onLogin || (onLegalAcceptance && legalAccepted)) router.replace('/(tabs)');
   }, [
     isReady, isAuthenticated, restaurantReady, needsSetup,
     legalReady, legalAccepted,
