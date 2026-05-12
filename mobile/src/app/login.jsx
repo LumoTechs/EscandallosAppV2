@@ -276,6 +276,25 @@ export default function Login() {
               Ver Planes
             </Text>
           </TouchableOpacity>
+
+          <View style={{ flexDirection: "row", gap: 4, marginTop: 28, flexWrap: "wrap", justifyContent: "center" }}>
+            {[
+              { label: "Política de privacidad", tab: "privacidad" },
+              { label: "Términos y condiciones", tab: "terminos" },
+              { label: "Aviso legal", tab: "aviso" },
+            ].map((item, i, arr) => (
+              <React.Fragment key={item.tab}>
+                <TouchableOpacity onPress={() => router.push({ pathname: "/legal", params: { tab: item.tab } })}>
+                  <Text style={{ fontSize: 11, color: T.muted, textDecorationLine: "underline" }}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+                {i < arr.length - 1 && (
+                  <Text style={{ fontSize: 11, color: T.muted }}>·</Text>
+                )}
+              </React.Fragment>
+            ))}
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
