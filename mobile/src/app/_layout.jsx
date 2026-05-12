@@ -1,6 +1,6 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -42,8 +42,11 @@ function AuthGate({ children }) {
 
   const [legalReady, setLegalReady] = useState(false);
   const { legalAccepted, setLegalAccepted } = useContext(LegalAcceptanceContext);
+  // Tracks the user.id for which we completed a real legal fetch.
+  // Prevents a stale legalReady=true (from the "not authenticated" early-return path)
+  // from triggering a premature redirect before the actual fetch finishes.
+  const legalCheckedForRef = useRef(null);
 
-  // Legal acceptance check — solo después de que el setup esté completo
   useEffect(() => {
     let cancelled = false;
 
@@ -57,7 +60,10 @@ function AuthGate({ children }) {
       setLegalReady(false);
       try {
         const row = await fetchLegalAcceptance(user.id);
-        if (!cancelled) setLegalAccepted(isLegalAcceptanceComplete(row));
+        if (!cancelled) {
+          setLegalAccepted(isLegalAcceptanceComplete(row));
+          legalCheckedForRef.current = user.id;
+        }
       } catch (error) {
         console.error('Error checking legal acceptance:', error);
         if (!cancelled) setLegalAccepted(false);
@@ -78,23 +84,23 @@ function AuthGate({ children }) {
     if (!isAuthenticated && !onPublic) { router.replace('/login'); return; }
     if (!isAuthenticated) return;
 
-    // 1. Setup wizard tiene prioridad
+    // 1. Setup wizard
     if (needsSetup && !onSetup) { router.replace('/setup'); return; }
     if (needsSetup) return;
 
-    // 2. Legal acceptance
-    if (!legalReady) return;
+    // 2. Legal acceptance — sólo actuar cuando el fetch sea para este usuario concreto
+    if (!legalReady || legalCheckedForRef.current !== user?.id) return;
     if (!legalAccepted && !onLegalAcceptance && !onLegal) {
       router.replace('/legal-acceptance');
       return;
     }
 
-    // 3. Todo OK → tabs
+    // 3. Todo OK -> tabs
     if (onLogin || onLegalAcceptance) router.replace('/(tabs)');
   }, [
     isReady, isAuthenticated, restaurantReady, needsSetup,
     legalReady, legalAccepted,
-    onPublic, onLogin, onSetup, onLegal, onLegalAcceptance, router,
+    onPublic, onLogin, onSetup, onLegal, onLegalAcceptance, router, user?.id,
   ]);
 
   const Spinner = (
@@ -107,8 +113,9 @@ function AuthGate({ children }) {
   if (!isAuthenticated && !onPublic) return Spinner;
   if (isAuthenticated && onLogin) return Spinner;
   if (isAuthenticated && needsSetup && !onSetup) return Spinner;
-  if (isAuthenticated && !needsSetup && !legalReady) return Spinner;
-  if (isAuthenticated && !needsSetup && !legalAccepted && !onLegalAcceptance && !onLegal) return Spinner;
+  if (isAuthenticated && !needsSetup && (
+    !legalReady || legalCheckedForRef.current !== user?.id
+  ) && !onLegalAcceptance && !onLegal) return Spinner;
   if (isAuthenticated && !needsSetup && legalAccepted && (onLogin || onLegalAcceptance)) return Spinner;
   return children;
 }
