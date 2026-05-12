@@ -105,7 +105,7 @@ function AuthGate({ children }) {
   }, [
     isReady, isAuthenticated, restaurantReady, needsSetup,
     legalReady, legalAccepted,
-    onPublic, onLogin, onSetup, onLegal, onLegalAcceptance, router, user?.id,
+    onPublic, onLogin, onSetup, onLegal, onLegalAcceptance, user?.id,
   ]);
 
   const Spinner = (
