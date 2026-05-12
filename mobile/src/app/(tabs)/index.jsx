@@ -8,7 +8,7 @@ import {
   Image,
   useWindowDimensions,
 } from "react-native";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
@@ -205,6 +205,16 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [savingsEstimate, setSavingsEstimate] = useState(null);
 
+  const onSignOut = useCallback(async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error("Error signing out:", error);
+    } finally {
+      router.replace("/login");
+    }
+  }, [signOut, router]);
+
   useEffect(() => {
     if (!isReady || !isAuthenticated) return;
     loadDashboardData();
@@ -310,7 +320,7 @@ export default function Dashboard() {
           </Text>
         </View>
         <TouchableOpacity
-          onPress={signOut}
+          onPress={onSignOut}
           accessibilityLabel="Cerrar sesión"
           style={{
             width: 38,

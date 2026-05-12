@@ -31,6 +31,7 @@ export function useSession() {
   }, []);
 
   const signOut = useCallback(async () => {
+    setSession(null);
     await supabase.auth.signOut();
   }, []);
 
