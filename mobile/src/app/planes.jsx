@@ -109,10 +109,10 @@ export default function Planes() {
     }
     setLoadingPlan(plan.id);
     try {
-      const res = await apiFetch("/api/stripe", {
+      const res = await apiFetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "checkout", plan: plan.id }),
+        body: JSON.stringify({ plan: plan.id }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.url) {

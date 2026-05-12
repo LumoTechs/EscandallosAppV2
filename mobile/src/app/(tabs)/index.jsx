@@ -6,10 +6,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
-  Modal,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
   useWindowDimensions,
 } from "react-native";
 import { useEffect, useState, useMemo } from "react";
@@ -25,7 +21,7 @@ import Svg, {
   LinearGradient,
   Stop,
 } from "react-native-svg";
-import { ArrowUpRight, TrendingUp, ChefHat, Sparkles, Flame, LogOut, UserPlus, X } from "lucide-react-native";
+import { ArrowUpRight, TrendingUp, ChefHat, Sparkles, Flame, LogOut } from "lucide-react-native";
 import { T } from "../../theme";
 import { apiFetch } from "../../utils/apiFetch";
 import { useSession } from "../../utils/auth";
@@ -197,156 +193,6 @@ function EmptyPeaceful() {
   );
 }
 
-function CreateUserModal({ visible, onClose }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState(null);
-
-  const reset = () => {
-    setEmail("");
-    setPassword("");
-    setFullName("");
-    setResult(null);
-  };
-
-  const handleClose = () => {
-    reset();
-    onClose();
-  };
-
-  const handleCreate = async () => {
-    if (!email.trim() || !password.trim()) return;
-    setSaving(true);
-    setResult(null);
-    try {
-      const res = await apiFetch("/api/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password, full_name: fullName.trim() }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setResult({ ok: true, message: `Usuario ${data.user?.email} creado correctamente.` });
-        setEmail("");
-        setPassword("");
-        setFullName("");
-      } else {
-        setResult({ ok: false, message: data.error || "Error al crear el usuario." });
-      }
-    } catch (e) {
-      setResult({ ok: false, message: "Error de conexión." });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const inputStyle = {
-    borderWidth: 1,
-    borderColor: T.line,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: T.ink,
-    backgroundColor: T.surface,
-    marginBottom: 12,
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center" }}
-          onPress={handleClose}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            style={{ width: "90%", maxWidth: 400, backgroundColor: T.bg, borderRadius: 20, padding: 24 }}
-            onPress={() => {}}
-          >
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <Text style={{ fontSize: 20, fontFamily: T.serif, color: T.ink, letterSpacing: -0.4 }}>
-                Nuevo usuario
-              </Text>
-              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <X size={20} color={T.inkSoft} />
-              </TouchableOpacity>
-            </View>
-
-            <TextInput
-              style={inputStyle}
-              placeholder="Nombre completo (opcional)"
-              placeholderTextColor={T.muted}
-              value={fullName}
-              onChangeText={setFullName}
-              autoCapitalize="words"
-              editable={!saving}
-            />
-            <TextInput
-              style={inputStyle}
-              placeholder="Email"
-              placeholderTextColor={T.muted}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!saving}
-            />
-            <TextInput
-              style={[inputStyle, { marginBottom: 16 }]}
-              placeholder="Contraseña (mín. 8 caracteres)"
-              placeholderTextColor={T.muted}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              editable={!saving}
-            />
-
-            {result && (
-              <View style={{
-                backgroundColor: result.ok ? "#EAF5EA" : "#FFF0EE",
-                borderRadius: 10,
-                padding: 12,
-                marginBottom: 14,
-              }}>
-                <Text style={{ fontSize: 13, color: result.ok ? T.ok : T.primary, lineHeight: 18 }}>
-                  {result.message}
-                </Text>
-              </View>
-            )}
-
-            <TouchableOpacity
-              onPress={handleCreate}
-              disabled={saving || !email.trim() || !password.trim()}
-              style={{
-                backgroundColor: (!email.trim() || !password.trim()) ? T.line : T.ink,
-                borderRadius: 12,
-                padding: 16,
-                alignItems: "center",
-              }}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={{ fontSize: 15, fontWeight: "600", color: "#fff" }}>
-                  Crear usuario
-                </Text>
-              )}
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -358,7 +204,6 @@ export default function Dashboard() {
   const [suppliersData, setSuppliersData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingsEstimate, setSavingsEstimate] = useState(null);
-  const [showCreateUser, setShowCreateUser] = useState(false);
 
   useEffect(() => {
     if (!isReady || !isAuthenticated) return;
@@ -435,7 +280,6 @@ export default function Dashboard() {
   return (
     <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: insets.top }}>
       <StatusBar style="dark" />
-      <CreateUserModal visible={showCreateUser} onClose={() => setShowCreateUser(false)} />
 
       <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 20, flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
         <View style={{ flex: 1 }}>
@@ -874,31 +718,6 @@ export default function Dashboard() {
                   </Text>
                 </View>
                 <ArrowUpRight color={T.ink} size={18} strokeWidth={2} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={{
-                  backgroundColor: T.surface,
-                  borderWidth: 1,
-                  borderColor: T.line,
-                  borderRadius: 14,
-                  padding: 18,
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-                onPress={() => setShowCreateUser(true)}
-              >
-                <View>
-                  <Text style={{ fontSize: 15, fontWeight: "600", color: T.ink }}>
-                    Crear usuario
-                  </Text>
-                  <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 2 }}>
-                    Añadir acceso a la plataforma
-                  </Text>
-                </View>
-                <UserPlus color={T.ink} size={18} strokeWidth={2} />
               </TouchableOpacity>
             </View>
           </View>
