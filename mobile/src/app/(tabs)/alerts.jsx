@@ -254,11 +254,11 @@ export default function Alerts() {
                               minute: "2-digit",
                             })}
                           </Text>
-                          {alert.product_name && (
+                          {(alert.product_name || alert.recipe_name) && (
                             <>
                               <View style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: T.muted }} />
                               <Text style={{ fontSize: 11, color: T.inkSoft, fontWeight: "500" }}>
-                                {alert.product_name}
+                                {alert.recipe_name ? `Plato · ${alert.recipe_name}` : alert.product_name}
                               </Text>
                             </>
                           )}

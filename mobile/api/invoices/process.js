@@ -271,6 +271,7 @@ async function handler(req, res) {
 
     // 3. Actualizar productos y generar alertas por cambios de precio
     const generatedAlerts = [];
+    const affectedRecipeIds = new Set();
 
     for (const item of extracted.items || []) {
       const productName = cleanStr(item.product_name, 200);
@@ -345,8 +346,74 @@ async function handler(req, res) {
               .single();
 
             if (alert) generatedAlerts.push(alert);
+
+            // Alertas independientes por cada plato que use este ingrediente
+            const { data: affectedIngredients } = await supabase
+              .from('recipe_ingredients')
+              .select('quantity, recipes(id, name)')
+              .eq('product_id', upserted.id);
+
+            for (const ri of affectedIngredients || []) {
+              if (!ri.recipes) continue;
+              affectedRecipeIds.add(ri.recipes.id);
+              const costDelta = parseFloat(ri.quantity || 0) * (newPrice - oldPrice);
+              const recipeVerb = change > 0 ? 'encarece' : 'abarata';
+              const priceMovement = change > 0 ? 'alza' : 'descenso';
+              const sign = change > 0 ? '+' : '-';
+              const recipeMessage = `'${ri.recipes.name}' se ${recipeVerb} ~€${Math.abs(costDelta).toFixed(2)} por el ${priceMovement} de ${productName} (${sign}${Math.abs(change).toFixed(1)}%)`;
+
+              const { data: recipeAlert } = await supabase
+                .from('alerts')
+                .insert({
+                  recipe_id: ri.recipes.id,
+                  message: recipeMessage,
+                  severity,
+                  read: false,
+                })
+                .select()
+                .single();
+
+              if (recipeAlert) generatedAlerts.push(recipeAlert);
+            }
           }
         }
+      }
+    }
+
+    // 4. Alertas de food cost: recalcular % real de cada plato afectado
+    for (const recipeId of affectedRecipeIds) {
+      const { data: recipe } = await supabase
+        .from('recipes')
+        .select('id, name, sale_price, target_food_cost_percentage')
+        .eq('id', recipeId)
+        .single();
+
+      if (!recipe || !parseFloat(recipe.sale_price || 0)) continue;
+
+      const { data: ingredients } = await supabase
+        .from('recipe_ingredients')
+        .select('quantity, products ( current_price )')
+        .eq('recipe_id', recipeId);
+
+      const totalCost = (ingredients || []).reduce(
+        (sum, ri) => sum + parseFloat(ri.quantity || 0) * parseFloat(ri.products?.current_price || 0),
+        0
+      );
+      const salePrice = parseFloat(recipe.sale_price);
+      const actualPct = (totalCost / salePrice) * 100;
+      const targetPct = parseFloat(recipe.target_food_cost_percentage || 35);
+
+      if (actualPct > targetPct) {
+        const severity = actualPct - targetPct >= 10 ? 'high' : 'medium';
+        const message = `'${recipe.name}' supera el objetivo de food cost: ${actualPct.toFixed(1)}% actual vs ${targetPct.toFixed(0)}% objetivo`;
+
+        const { data: fcAlert } = await supabase
+          .from('alerts')
+          .insert({ recipe_id: recipeId, message, severity, read: false })
+          .select()
+          .single();
+
+        if (fcAlert) generatedAlerts.push(fcAlert);
       }
     }
 
