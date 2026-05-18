@@ -338,6 +338,7 @@ export default function Recipes() {
   const [recipes, setRecipes] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
 
   const [newName, setNewName] = useState("");
@@ -353,6 +354,7 @@ export default function Recipes() {
   }, [isReady, isAuthenticated]);
 
   const loadData = async () => {
+    setError(null);
     try {
       const [recipesRes, productsRes] = await Promise.all([
         apiFetch("/api/recipes"),
@@ -363,7 +365,7 @@ export default function Recipes() {
       setRecipes(rd.recipes || []);
       setProducts(pd.products || []);
     } catch (e) {
-      console.error("Error:", e);
+      setError(e.message || "Error al cargar los escandallos");
     } finally {
       setLoading(false);
     }
@@ -815,7 +817,19 @@ export default function Recipes() {
         </Text>
       </View>
 
-      {loading ? (
+      {error ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 32 }}>
+          <Text style={{ fontSize: 15, color: T.inkSoft, textAlign: "center", lineHeight: 22, marginBottom: 20 }}>
+            {error}
+          </Text>
+          <TouchableOpacity
+            onPress={loadData}
+            style={{ paddingHorizontal: 24, paddingVertical: 12, backgroundColor: T.primary, borderRadius: 12 }}
+          >
+            <Text style={{ fontSize: 14, fontWeight: "600", color: "#fff" }}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" color={T.primary} />
         </View>

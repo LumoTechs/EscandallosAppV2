@@ -114,6 +114,7 @@ export default function Products() {
   const { isReady, isAuthenticated } = useSession();
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState(null);
   const [tab, setTab] = useState("productos");
@@ -168,6 +169,7 @@ export default function Products() {
   }, [search, isReady, isAuthenticated]);
 
   const loadGroups = async () => {
+    setError(null);
     try {
       const params = new URLSearchParams({ grouped: "true" });
       if (search) params.append("search", search);
@@ -175,7 +177,7 @@ export default function Products() {
       const data = await res.json();
       setGroups(data.groups || []);
     } catch (e) {
-      console.error("Error loading products:", e);
+      setError(e.message || "Error al cargar los productos");
     } finally {
       setLoading(false);
     }
@@ -305,7 +307,19 @@ export default function Products() {
         </View>
       </View>
 
-      {loading ? (
+      {error ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 32 }}>
+          <Text style={{ fontSize: 15, color: T.inkSoft, textAlign: "center", lineHeight: 22, marginBottom: 20 }}>
+            {error}
+          </Text>
+          <TouchableOpacity
+            onPress={loadGroups}
+            style={{ paddingHorizontal: 24, paddingVertical: 12, backgroundColor: T.primary, borderRadius: 12 }}
+          >
+            <Text style={{ fontSize: 14, fontWeight: "600", color: "#fff" }}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" color={T.primary} />
         </View>

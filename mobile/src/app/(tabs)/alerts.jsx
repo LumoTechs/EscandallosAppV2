@@ -38,6 +38,7 @@ export default function Alerts() {
   const { isReady, isAuthenticated } = useSession();
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filter, setFilter] = useState("all");
 
   useEffect(() => {
@@ -46,12 +47,13 @@ export default function Alerts() {
   }, [isReady, isAuthenticated]);
 
   const loadAlerts = async () => {
+    setError(null);
     try {
       const response = await apiFetch("/api/alerts");
       const data = await response.json();
       setAlerts(data.alerts || []);
     } catch (error) {
-      console.error("Error loading alerts:", error);
+      setError(error.message || "Error al cargar las alertas");
     } finally {
       setLoading(false);
     }
@@ -164,7 +166,19 @@ export default function Alerts() {
         <FilterChip value="high"   label="Críticas"  count={alerts.filter((a) => a.severity === "high").length} />
       </ScrollView>
 
-      {loading ? (
+      {error ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 32 }}>
+          <Text style={{ fontSize: 15, color: T.inkSoft, textAlign: "center", lineHeight: 22, marginBottom: 20 }}>
+            {error}
+          </Text>
+          <TouchableOpacity
+            onPress={loadAlerts}
+            style={{ paddingHorizontal: 24, paddingVertical: 12, backgroundColor: T.primary, borderRadius: 12 }}
+          >
+            <Text style={{ fontSize: 14, fontWeight: "600", color: "#fff" }}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" color={T.primary} />
         </View>

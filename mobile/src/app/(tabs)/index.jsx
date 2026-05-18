@@ -203,6 +203,7 @@ export default function Dashboard() {
   const [recipes, setRecipes] = useState([]);
   const [suppliersData, setSuppliersData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [savingsEstimate, setSavingsEstimate] = useState(null);
 
   useEffect(() => {
@@ -224,6 +225,7 @@ export default function Dashboard() {
   };
 
   const loadDashboardData = async () => {
+    setError(null);
     try {
       const [alertsRes, recipesRes, suppliersRes] = await Promise.all([
         apiFetch("/api/alerts?unread_only=true"),
@@ -242,7 +244,7 @@ export default function Dashboard() {
         }))
       );
     } catch (error) {
-      console.error("Error loading dashboard:", error);
+      setError(error.message || "Error al cargar el panel");
     } finally {
       setLoading(false);
       loadSavingsEstimate();
@@ -345,7 +347,19 @@ export default function Dashboard() {
         </View>
       </View>
 
-      {loading ? (
+      {error ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 32 }}>
+          <Text style={{ fontSize: 15, color: T.inkSoft, textAlign: "center", lineHeight: 22, marginBottom: 20 }}>
+            {error}
+          </Text>
+          <TouchableOpacity
+            onPress={loadDashboardData}
+            style={{ paddingHorizontal: 24, paddingVertical: 12, backgroundColor: T.primary, borderRadius: 12 }}
+          >
+            <Text style={{ fontSize: 14, fontWeight: "600", color: "#fff" }}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" color={T.primary} />
         </View>
