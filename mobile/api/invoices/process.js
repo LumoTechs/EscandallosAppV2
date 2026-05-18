@@ -1,5 +1,6 @@
 // api/invoices/process.js
 import { getAdminClient } from '../_lib/supabase.js';
+import { pool } from '../_lib/db.js';
 import { compose, rateLimit, requireSameOrigin, requireAuth } from '../_lib/auth.js';
 
 // ============================================
@@ -281,53 +282,57 @@ async function handler(req, res) {
       const cleanUnit = cleanStr(item.unit, 20);
       const productSupplier = supplierName;
       const normalized = productName.toLowerCase();
-      // Usamos el coste normalizado (€/unidad base) para comparar precios de forma justa
       const newPrice = parseFloat(item.cost_per_unit_normalized);
 
-      // Lookup previo del precio actual para la alerta. La carrera entre dos
-      // facturas concurrentes del mismo producto puede generar alertas redundantes,
-      // pero ya no produce filas duplicadas en `products` (UNIQUE en name_normalized+supplier).
-      let prevQuery = supabase
-        .from('products')
-        .select('id, current_price')
-        .eq('name_normalized', normalized);
-      prevQuery = productSupplier === null
-        ? prevQuery.is('supplier', null)
-        : prevQuery.eq('supplier', productSupplier);
-      const { data: prev } = await prevQuery.maybeSingle();
+      // Transacción atómica: SELECT FOR UPDATE evita que dos facturas concurrentes
+      // lean el mismo precio viejo y generen alertas/historial duplicados.
+      let productId = null;
+      let prevPrice = null;
 
-      const { data: upserted, error: upsertErr } = await supabase
-        .from('products')
-        .upsert(
-          {
-            name: productName,
-            unit: cleanUnit,
-            current_price: newPrice,
-            supplier: productSupplier,
-          },
-          { onConflict: 'name_normalized,supplier' }
-        )
-        .select('id')
-        .single();
+      const pgClient = await pool.connect();
+      try {
+        await pgClient.query('BEGIN');
 
-      if (upsertErr || !upserted) {
-        console.error('Error upserting product:', upsertErr);
+        const { rows: [existing] } = await pgClient.query(
+          `SELECT id, current_price FROM products
+           WHERE name_normalized = $1 AND supplier IS NOT DISTINCT FROM $2
+           FOR UPDATE`,
+          [normalized, productSupplier]
+        );
+
+        const { rows: [upserted] } = await pgClient.query(
+          `INSERT INTO products (name, unit, current_price, supplier)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (name_normalized, supplier) DO UPDATE
+             SET name = EXCLUDED.name,
+                 unit = EXCLUDED.unit,
+                 current_price = EXCLUDED.current_price
+           RETURNING id`,
+          [productName, cleanUnit, newPrice, productSupplier]
+        );
+
+        productId = upserted.id;
+        prevPrice = existing ? parseFloat(existing.current_price) : null;
+        const priceChanged = prevPrice === null || prevPrice !== newPrice;
+
+        if (priceChanged) {
+          await pgClient.query(
+            'INSERT INTO product_prices (product_id, price) VALUES ($1, $2)',
+            [productId, newPrice]
+          );
+        }
+
+        await pgClient.query('COMMIT');
+      } catch (txErr) {
+        await pgClient.query('ROLLBACK');
+        console.error('Error updating product:', txErr);
         continue;
+      } finally {
+        pgClient.release();
       }
 
-      // Solo loguear histórico cuando hay cambio real: producto nuevo o precio distinto.
-      const prevPrice = prev ? parseFloat(prev.current_price || 0) : null;
-      const priceChanged = prevPrice === null || prevPrice !== newPrice;
-      if (priceChanged) {
-        const { error: priceErr } = await supabase.from('product_prices').insert({
-          product_id: upserted.id,
-          price: newPrice,
-        });
-        if (priceErr) console.error('Error logging price history:', priceErr);
-      }
-
-      if (prev) {
-        const oldPrice = parseFloat(prev.current_price || 0);
+      if (prevPrice !== null) {
+        const oldPrice = prevPrice;
         if (oldPrice > 0) {
           const change = ((newPrice - oldPrice) / oldPrice) * 100;
           if (Math.abs(change) >= 10) {
@@ -338,7 +343,7 @@ async function handler(req, res) {
             const { data: alert } = await supabase
               .from('alerts')
               .insert({
-                product_id: upserted.id,
+                product_id: productId,
                 message,
                 severity,
                 read: false,
@@ -352,7 +357,7 @@ async function handler(req, res) {
             const { data: affectedIngredients } = await supabase
               .from('recipe_ingredients')
               .select('quantity, recipes(id, name)')
-              .eq('product_id', upserted.id);
+              .eq('product_id', productId);
 
             for (const ri of affectedIngredients || []) {
               if (!ri.recipes) continue;
