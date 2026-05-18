@@ -272,6 +272,7 @@ async function handler(req, res) {
     // 3. Actualizar productos y generar alertas por cambios de precio
     const generatedAlerts = [];
     const affectedRecipeIds = new Set();
+    const costDeltaAlertedRecipeIds = new Set();
 
     for (const item of extracted.items || []) {
       const productName = cleanStr(item.product_name, 200);
@@ -356,6 +357,8 @@ async function handler(req, res) {
             for (const ri of affectedIngredients || []) {
               if (!ri.recipes) continue;
               affectedRecipeIds.add(ri.recipes.id);
+              if (costDeltaAlertedRecipeIds.has(ri.recipes.id)) continue;
+              costDeltaAlertedRecipeIds.add(ri.recipes.id);
               const costDelta = parseFloat(ri.quantity || 0) * (newPrice - oldPrice);
               const recipeVerb = change > 0 ? 'encarece' : 'abarata';
               const priceMovement = change > 0 ? 'alza' : 'descenso';
