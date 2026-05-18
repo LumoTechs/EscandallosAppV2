@@ -430,15 +430,24 @@ export default function Recipes() {
   };
 
   const save = async () => {
-    if (!newName || !newSalePrice || newIngredients.length === 0) return;
+    const trimmedName = newName.trim();
+    const salePrice = parseFloat(newSalePrice);
+    if (!trimmedName) return Alert.alert("Campo requerido", "Introduce un nombre para el escandallo");
+    if (!salePrice || salePrice <= 0 || isNaN(salePrice)) return Alert.alert("Precio inválido", "El precio de venta debe ser mayor que 0");
+    if (newIngredients.length === 0) return Alert.alert("Sin ingredientes", "Añade al menos un ingrediente");
+    const zeroQty = newIngredients.find((i) => !i.quantity || i.quantity <= 0);
+    if (zeroQty) {
+      const p = products.find((pr) => pr.id === zeroQty.product_id);
+      return Alert.alert("Cantidad inválida", `La cantidad de "${p?.name || "ingrediente"}" debe ser mayor que 0`);
+    }
     setSaving(true);
     try {
       const res = await apiFetch("/api/recipes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: newName,
-          sale_price: parseFloat(newSalePrice),
+          name: trimmedName,
+          sale_price: salePrice,
           category: newCategory,
           ingredients: newIngredients.map((i) => {
             const p = products.find((pr) => pr.id === i.product_id);
