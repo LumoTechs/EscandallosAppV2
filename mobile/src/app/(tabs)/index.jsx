@@ -21,7 +21,7 @@ import Svg, {
   LinearGradient,
   Stop,
 } from "react-native-svg";
-import { ArrowUpRight, TrendingUp, ChefHat, Sparkles, Flame, LogOut } from "lucide-react-native";
+import { ArrowUpRight, TrendingUp, ChefHat, Sparkles, Flame, LogOut, HelpCircle } from "lucide-react-native";
 import { T } from "../../theme";
 import { apiFetch } from "../../utils/apiFetch";
 import { useSession } from "../../utils/auth";
@@ -309,23 +309,40 @@ export default function Dashboard() {
             Control de costes y escandallos
           </Text>
         </View>
-        <TouchableOpacity
-          onPress={signOut}
-          accessibilityLabel="Cerrar sesión"
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 10,
-            borderWidth: 1,
-            borderColor: T.line,
-            backgroundColor: T.surface,
-            alignItems: "center",
-            justifyContent: "center",
-            marginTop: 4,
-          }}
-        >
-          <LogOut size={16} color={T.inkSoft} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+          <TouchableOpacity
+            onPress={() => router.push("/support")}
+            accessibilityLabel="Soporte"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: T.line,
+              backgroundColor: T.surface,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <HelpCircle size={16} color={T.inkSoft} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={signOut}
+            accessibilityLabel="Cerrar sesión"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: T.line,
+              backgroundColor: T.surface,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <LogOut size={16} color={T.inkSoft} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
