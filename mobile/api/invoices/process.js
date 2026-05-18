@@ -111,113 +111,143 @@ function extractFirstJsonObject(text) {
   return null;
 }
 
+const cleanStr = (v, max) => {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  return t ? t.slice(0, max) : null;
+};
+
 async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
   try {
-    const { base64File, base64Files } = req.body || {};
+    const { base64File, base64Files, dry_run, confirmed } = req.body || {};
 
-    // El endpoint procesa UNA factura por request. El frontend itera 1×imagen
-    // para mostrar progreso. Aceptamos `base64Files` (array de 1) por compat,
-    // pero rechazamos arrays >1 — Claude devolvería una sola factura fusionando todo.
-    let file;
-    if (Array.isArray(base64Files)) {
-      if (base64Files.length !== 1) {
-        return res.status(400).json({
-          error: 'base64Files debe contener exactamente 1 imagen. Llama al endpoint una vez por factura.',
-        });
-      }
-      file = base64Files[0];
-    } else if (base64File) {
-      file = base64File;
-    } else {
-      return res.status(400).json({ error: 'base64File requerido' });
-    }
-
-    const match = file.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) {
-      return res.status(400).json({ error: 'Formato base64 inválido' });
-    }
-    const mediaType = match[1];
-    const base64Data = match[2];
-    const isPdf = mediaType === 'application/pdf';
-
-    const contentBlocks = [
-      {
-        type: isPdf ? 'document' : 'image',
-        source: { type: 'base64', media_type: mediaType, data: base64Data },
-      },
-      { type: 'text', text: EXTRACTION_PROMPT },
-    ];
-
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'ANTHROPIC_API_KEY no configurada' });
-    }
-
-    let anthropicResponse;
-    try {
-      anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: ANTHROPIC_MODEL,
-          max_tokens: 8000,
-          messages: [
-            {
-              role: 'user',
-              content: contentBlocks,
-            },
-          ],
-        }),
-        signal: AbortSignal.timeout(60000),
-      });
-    } catch (fetchErr) {
-      if (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError') {
-        return res.status(504).json({
-          error: 'Anthropic tardó más de 45s en responder. Reintenta o prueba con menos páginas.',
-        });
-      }
-      throw fetchErr;
-    }
-
-    if (!anthropicResponse.ok) {
-      const errText = await anthropicResponse.text();
-      console.error('Error Anthropic:', errText);
-      return res.status(500).json({
-        error: `Error de Anthropic: ${anthropicResponse.status}`,
-        detail: errText,
-      });
-    }
-
-    const anthropicData = await anthropicResponse.json();
-    const textBlock = anthropicData.content?.find((c) => c.type === 'text');
-
-    if (!textBlock || !textBlock.text) {
-      throw new Error('Respuesta inesperada del modelo');
-    }
-
-    const jsonStr = extractFirstJsonObject(textBlock.text);
-    if (!jsonStr) {
-      console.error('No se encontró JSON en respuesta del modelo:', textBlock.text);
-      return res.status(500).json({ error: 'La IA no devolvió un JSON válido' });
-    }
     let extracted;
-    try {
-      extracted = JSON.parse(jsonStr);
-    } catch (e) {
-      console.error('JSON inválido del modelo:', textBlock.text);
-      return res.status(500).json({ error: 'La IA no devolvió un JSON válido' });
+
+    if (confirmed) {
+      // Modo confirmado: el usuario revisó y editó los datos extraídos, saltar Claude
+      if (typeof confirmed !== 'object' || Array.isArray(confirmed)) {
+        return res.status(400).json({ error: 'confirmed debe ser un objeto' });
+      }
+      extracted = confirmed;
+    } else {
+      // Modo OCR: extraer desde imagen con Claude
+      let file;
+      if (Array.isArray(base64Files)) {
+        if (base64Files.length !== 1) {
+          return res.status(400).json({
+            error: 'base64Files debe contener exactamente 1 imagen. Llama al endpoint una vez por factura.',
+          });
+        }
+        file = base64Files[0];
+      } else if (base64File) {
+        file = base64File;
+      } else {
+        return res.status(400).json({ error: 'base64File requerido' });
+      }
+
+      const match = file.match(/^data:([^;]+);base64,(.+)$/);
+      if (!match) {
+        return res.status(400).json({ error: 'Formato base64 inválido' });
+      }
+      const mediaType = match[1];
+      const base64Data = match[2];
+      const isPdf = mediaType === 'application/pdf';
+
+      const contentBlocks = [
+        {
+          type: isPdf ? 'document' : 'image',
+          source: { type: 'base64', media_type: mediaType, data: base64Data },
+        },
+        { type: 'text', text: EXTRACTION_PROMPT },
+      ];
+
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: 'ANTHROPIC_API_KEY no configurada' });
+      }
+
+      let anthropicResponse;
+      try {
+        anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: ANTHROPIC_MODEL,
+            max_tokens: 8000,
+            messages: [{ role: 'user', content: contentBlocks }],
+          }),
+          signal: AbortSignal.timeout(60000),
+        });
+      } catch (fetchErr) {
+        if (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError') {
+          return res.status(504).json({
+            error: 'Anthropic tardó más de 45s en responder. Reintenta o prueba con menos páginas.',
+          });
+        }
+        throw fetchErr;
+      }
+
+      if (!anthropicResponse.ok) {
+        const errText = await anthropicResponse.text();
+        console.error('Error Anthropic:', errText);
+        return res.status(500).json({
+          error: `Error de Anthropic: ${anthropicResponse.status}`,
+          detail: errText,
+        });
+      }
+
+      const anthropicData = await anthropicResponse.json();
+      const textBlock = anthropicData.content?.find((c) => c.type === 'text');
+
+      if (!textBlock || !textBlock.text) {
+        throw new Error('Respuesta inesperada del modelo');
+      }
+
+      const jsonStr = extractFirstJsonObject(textBlock.text);
+      if (!jsonStr) {
+        console.error('No se encontró JSON en respuesta del modelo:', textBlock.text);
+        return res.status(500).json({ error: 'La IA no devolvió un JSON válido' });
+      }
+      try {
+        extracted = JSON.parse(jsonStr);
+      } catch (e) {
+        console.error('JSON inválido del modelo:', textBlock.text);
+        return res.status(500).json({ error: 'La IA no devolvió un JSON válido' });
+      }
+
+      // dry_run: devolver datos extraídos sin guardar nada en BD
+      if (dry_run) {
+        return res.status(200).json({
+          dry_run: true,
+          extracted: {
+            invoice_number: extracted.invoice_number || null,
+            supplier: normalizeSupplier(extracted.supplier),
+            invoice_date: extracted.invoice_date || null,
+            items: (extracted.items || []).map((it) => ({
+              product_name: cleanStr(it.product_name, 200),
+              quantity: it.quantity ?? null,
+              unit: cleanStr(it.unit, 20),
+              unit_price: it.unit_price ?? null,
+              total_price: it.total_price ?? null,
+              pack_info: cleanStr(it.pack_info, 100),
+              cost_per_unit_normalized: it.cost_per_unit_normalized ?? it.unit_price ?? null,
+            })),
+          },
+        });
+      }
     }
+
+    // --- Guardar en BD (modo normal y modo confirmado) ---
 
     const supabase = getAdminClient();
-
     const supplierName = normalizeSupplier(extracted.supplier);
 
     // 1. Guardar factura
@@ -240,11 +270,6 @@ async function handler(req, res) {
     // 2. Guardar items de la factura (con los nuevos campos normalizados).
     // Sanitizamos los strings devueltos por el modelo para evitar que un PDF
     // adversario o un OCR raro inyecte cadenas absurdamente largas.
-    const cleanStr = (v, max) => {
-      if (typeof v !== 'string') return null;
-      const t = v.trim();
-      return t ? t.slice(0, max) : null;
-    };
     const itemsToInsert = (extracted.items || []).map((it) => ({
       invoice_id: invoice.id,
       product_name: cleanStr(it.product_name, 200),

@@ -5,12 +5,15 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as ImagePicker from "expo-image-picker";
-import { Camera, FileText, Check, AlertCircle, X, Plus } from "lucide-react-native";
+import { Camera, FileText, Check, AlertCircle, X, Plus, Trash2, Edit3 } from "lucide-react-native";
 import Svg, { Path, Rect, Circle, Line } from "react-native-svg";
 import { T } from "../../theme";
 import { apiFetch } from "../../utils/apiFetch";
@@ -32,14 +35,28 @@ function InvoiceIllustration() {
   );
 }
 
+const inputStyle = {
+  backgroundColor: T.bg,
+  borderWidth: 1,
+  borderColor: T.line,
+  borderRadius: 8,
+  paddingHorizontal: 10,
+  paddingVertical: 7,
+  fontSize: 13,
+  color: T.ink,
+};
+
 export default function UploadInvoice() {
   const insets = useSafeAreaInsets();
-  const [processing, setProcessing] = useState(false);
+
+  // step: 'upload' | 'extracting' | 'preview' | 'saving' | 'results'
+  const [step, setStep] = useState("upload");
   const [progress, setProgress] = useState({ current: 0, total: 0 });
-  const [results, setResults] = useState([]); // una entrada por factura procesada
+  const [results, setResults] = useState([]);
   const [error, setError] = useState(null);
-  // Cada imagen: { uri, base64, mimeType }
   const [images, setImages] = useState([]);
+  // Array<{ error?, invoice_number, supplier, invoice_date, items: [...] }>
+  const [previewData, setPreviewData] = useState([]);
 
   const addFromGallery = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -78,14 +95,42 @@ export default function UploadInvoice() {
     setImages((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const processImages = async () => {
+  // ---- Preview data mutators ----
+  const updateInvoiceField = (invIdx, field, value) => {
+    setPreviewData((prev) =>
+      prev.map((inv, i) => (i === invIdx ? { ...inv, [field]: value } : inv))
+    );
+  };
+
+  const updateItemField = (invIdx, itemIdx, field, value) => {
+    setPreviewData((prev) =>
+      prev.map((inv, i) => {
+        if (i !== invIdx) return inv;
+        return {
+          ...inv,
+          items: inv.items.map((it, j) => (j === itemIdx ? { ...it, [field]: value } : it)),
+        };
+      })
+    );
+  };
+
+  const removeItem = (invIdx, itemIdx) => {
+    setPreviewData((prev) =>
+      prev.map((inv, i) => {
+        if (i !== invIdx) return inv;
+        return { ...inv, items: inv.items.filter((_, j) => j !== itemIdx) };
+      })
+    );
+  };
+
+  // ---- Step 1: Extract (dry_run) ----
+  const extractAndPreview = async () => {
     if (images.length === 0) return;
     setError(null);
-    setResults([]);
-    setProcessing(true);
+    setStep("extracting");
     setProgress({ current: 0, total: images.length });
 
-    const collected = [];
+    const extracted = [];
     for (let i = 0; i < images.length; i++) {
       setProgress({ current: i + 1, total: images.length });
       const img = images[i];
@@ -94,7 +139,47 @@ export default function UploadInvoice() {
         const apiResponse = await apiFetch("/api/invoices/process", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ base64Files: [base64File] }),
+          body: JSON.stringify({ base64Files: [base64File], dry_run: true }),
+        });
+        if (!apiResponse.ok) {
+          const errData = await apiResponse.json().catch(() => ({}));
+          extracted.push({ error: errData.error || `Error ${apiResponse.status}` });
+        } else {
+          const data = await apiResponse.json();
+          extracted.push(data.extracted);
+        }
+      } catch (err) {
+        extracted.push({ error: err.message || "Error al procesar" });
+      }
+    }
+
+    const hasSuccess = extracted.some((e) => !e.error);
+    if (!hasSuccess) {
+      setStep("upload");
+      setError("No se pudo extraer ninguna factura. Comprueba que las imágenes sean legibles.");
+      return;
+    }
+
+    setPreviewData(extracted);
+    setStep("preview");
+  };
+
+  // ---- Step 2: Confirm and save ----
+  const confirmAndSave = async () => {
+    const toSave = previewData.filter((inv) => !inv.error);
+    if (toSave.length === 0) return;
+
+    setStep("saving");
+    setProgress({ current: 0, total: toSave.length });
+
+    const collected = [];
+    for (let i = 0; i < toSave.length; i++) {
+      setProgress({ current: i + 1, total: toSave.length });
+      try {
+        const apiResponse = await apiFetch("/api/invoices/process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmed: toSave[i] }),
         });
         if (!apiResponse.ok) {
           const errData = await apiResponse.json().catch(() => ({}));
@@ -103,44 +188,452 @@ export default function UploadInvoice() {
           collected.push(await apiResponse.json());
         }
       } catch (err) {
-        console.error("Error processing invoice:", err);
-        collected.push({ error: err.message || "Error al procesar" });
+        collected.push({ error: err.message || "Error al guardar" });
       }
     }
 
     setResults(collected);
-    setProcessing(false);
+    setStep("results");
   };
 
   const reset = () => {
     setResults([]);
     setError(null);
     setImages([]);
+    setPreviewData([]);
+    setStep("upload");
   };
 
+  const isSpinner = step === "extracting" || step === "saving";
+  const spinnerText =
+    step === "extracting"
+      ? progress.total > 1
+        ? `Analizando factura ${progress.current} de ${progress.total}`
+        : "Analizando con IA..."
+      : progress.total > 1
+      ? `Guardando factura ${progress.current} de ${progress.total}`
+      : "Guardando...";
+
   return (
-    <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: insets.top }}>
-      <StatusBar style="dark" />
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: T.bg }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <View style={{ flex: 1, paddingTop: insets.top }}>
+        <StatusBar style="dark" />
 
-      <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 20 }}>
-        <Text style={{ fontSize: 11, fontWeight: "600", color: T.accent, letterSpacing: 2, textTransform: "uppercase" }}>
-          Nueva entrada
-        </Text>
-        <Text style={{ fontSize: 30, fontFamily: T.serif, color: T.ink, letterSpacing: -0.6, marginTop: 6 }}>
-          Procesar factura
-        </Text>
-        <Text style={{ fontSize: 14, color: T.inkSoft, marginTop: 4 }}>
-          Añade una o varias facturas para procesarlas en lote
-        </Text>
-      </View>
+        <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 20 }}>
+          <Text style={{ fontSize: 11, fontWeight: "600", color: T.accent, letterSpacing: 2, textTransform: "uppercase" }}>
+            Nueva entrada
+          </Text>
+          <Text style={{ fontSize: 30, fontFamily: T.serif, color: T.ink, letterSpacing: -0.6, marginTop: 6 }}>
+            Procesar factura
+          </Text>
+          <Text style={{ fontSize: 14, color: T.inkSoft, marginTop: 4 }}>
+            {step === "preview"
+              ? "Revisa y corrige los datos antes de guardar"
+              : "Añade una o varias facturas para procesarlas en lote"}
+          </Text>
+        </View>
 
-      {results.length === 0 ? (
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 100 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {processing ? (
+        {/* ---- UPLOAD / SPINNER ---- */}
+        {(step === "upload" || step === "extracting") && (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 100 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {isSpinner ? (
+              <View
+                style={{
+                  backgroundColor: T.surface,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: T.line,
+                  padding: 40,
+                  alignItems: "center",
+                }}
+              >
+                <View style={{ marginBottom: 20 }}>
+                  <InvoiceIllustration />
+                </View>
+                <ActivityIndicator size="small" color={T.primary} />
+                <Text style={{ fontSize: 16, fontFamily: T.serif, color: T.ink, marginTop: 16 }}>
+                  {spinnerText}
+                </Text>
+                <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 4 }}>
+                  Esto puede tardar unos segundos
+                </Text>
+              </View>
+            ) : (
+              <View>
+                {images.length > 0 && (
+                  <View style={{ marginBottom: 16 }}>
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: T.muted, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10 }}>
+                      {images.length} {images.length === 1 ? "imagen seleccionada" : "imágenes seleccionadas"}
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -4 }}>
+                      <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 4 }}>
+                        {images.map((img, idx) => (
+                          <View key={idx} style={{ position: "relative" }}>
+                            <Image
+                              source={{ uri: img.uri }}
+                              style={{ width: 100, height: 120, borderRadius: 10, backgroundColor: T.surface }}
+                              resizeMode="cover"
+                            />
+                            <TouchableOpacity
+                              onPress={() => removeImage(idx)}
+                              activeOpacity={0.8}
+                              style={{
+                                position: "absolute",
+                                top: 5,
+                                right: 5,
+                                width: 22,
+                                height: 22,
+                                borderRadius: 11,
+                                backgroundColor: "rgba(0,0,0,0.55)",
+                                justifyContent: "center",
+                                alignItems: "center",
+                              }}
+                            >
+                              <X size={12} color="#fff" strokeWidth={2.5} />
+                            </TouchableOpacity>
+                            <View
+                              style={{
+                                position: "absolute",
+                                bottom: 5,
+                                left: 5,
+                                backgroundColor: "rgba(0,0,0,0.45)",
+                                borderRadius: 5,
+                                paddingHorizontal: 5,
+                                paddingVertical: 2,
+                              }}
+                            >
+                              <Text style={{ fontSize: 10, color: "#fff", fontWeight: "600" }}>{idx + 1}</Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  </View>
+                )}
+
+                <View style={{ gap: 10, marginBottom: 16 }}>
+                  <TouchableOpacity
+                    activeOpacity={0.88}
+                    style={{
+                      backgroundColor: images.length === 0 ? T.primary : T.surface,
+                      borderWidth: images.length === 0 ? 0 : 1,
+                      borderColor: T.line,
+                      borderRadius: 16,
+                      padding: 18,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 14,
+                    }}
+                    onPress={addFromCamera}
+                  >
+                    <View
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 10,
+                        backgroundColor: images.length === 0 ? "rgba(255,255,255,0.18)" : T.accentSoft,
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Camera color={images.length === 0 ? "#fff" : T.primary} size={20} strokeWidth={1.8} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: "600", color: images.length === 0 ? "#fff" : T.ink }}>
+                        {images.length === 0 ? "Tomar foto" : "Añadir otra foto"}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: images.length === 0 ? T.accentSoft : T.inkSoft, marginTop: 1 }}>
+                        Usa la cámara del dispositivo
+                      </Text>
+                    </View>
+                    {images.length > 0 && <Plus size={18} color={T.muted} strokeWidth={2} />}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    activeOpacity={0.88}
+                    style={{
+                      backgroundColor: T.surface,
+                      borderWidth: 1,
+                      borderColor: T.line,
+                      borderRadius: 16,
+                      padding: 18,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 14,
+                    }}
+                    onPress={addFromGallery}
+                  >
+                    <View
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 10,
+                        backgroundColor: T.accentSoft,
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <FileText color={T.primary} size={20} strokeWidth={1.8} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: "600", color: T.ink }}>
+                        {images.length === 0 ? "Seleccionar de galería" : "Añadir de galería"}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 1 }}>
+                        Selección múltiple permitida
+                      </Text>
+                    </View>
+                    {images.length > 0 && <Plus size={18} color={T.muted} strokeWidth={2} />}
+                  </TouchableOpacity>
+                </View>
+
+                {images.length > 0 && (
+                  <TouchableOpacity
+                    activeOpacity={0.88}
+                    onPress={extractAndPreview}
+                    style={{
+                      backgroundColor: T.primary,
+                      borderRadius: 16,
+                      padding: 18,
+                      alignItems: "center",
+                      marginBottom: 16,
+                    }}
+                  >
+                    <Text style={{ fontSize: 16, fontWeight: "600", color: "#fff" }}>
+                      Analizar {images.length === 1 ? "1 imagen" : `${images.length} imágenes`}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {!images.length && (
+                  <View style={{ alignItems: "center", paddingVertical: 16 }}>
+                    <InvoiceIllustration />
+                  </View>
+                )}
+
+                {error && (
+                  <View
+                    style={{
+                      backgroundColor: T.primarySoft,
+                      borderLeftWidth: 3,
+                      borderLeftColor: T.primary,
+                      borderRadius: 10,
+                      padding: 14,
+                      marginTop: 8,
+                      flexDirection: "row",
+                      gap: 10,
+                    }}
+                  >
+                    <AlertCircle color={T.primary} size={18} strokeWidth={1.8} />
+                    <Text style={{ fontSize: 13, color: T.ink, flex: 1 }}>{error}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </ScrollView>
+        )}
+
+        {/* ---- PREVIEW / REVIEW ---- */}
+        {step === "preview" && (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 120 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16, backgroundColor: T.accentSoft, borderRadius: 12, padding: 12 }}>
+              <Edit3 size={16} color={T.primary} strokeWidth={2} />
+              <Text style={{ fontSize: 13, color: T.ink, flex: 1 }}>
+                Corrige cualquier error de la IA antes de guardar. Pulsa sobre cualquier campo para editarlo.
+              </Text>
+            </View>
+
+            {previewData.map((inv, invIdx) => (
+              <View key={invIdx} style={{ marginBottom: 20 }}>
+                {previewData.length > 1 && (
+                  <Text style={{ fontSize: 10, fontWeight: "600", color: T.muted, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>
+                    Factura {invIdx + 1}
+                  </Text>
+                )}
+
+                {inv.error ? (
+                  <View style={{ backgroundColor: T.primarySoft, borderLeftWidth: 3, borderLeftColor: T.primary, borderRadius: 10, padding: 14, flexDirection: "row", gap: 10 }}>
+                    <AlertCircle color={T.primary} size={18} strokeWidth={1.8} />
+                    <Text style={{ fontSize: 13, color: T.ink, flex: 1 }}>No se pudo extraer: {inv.error}</Text>
+                  </View>
+                ) : (
+                  <>
+                    {/* Cabecera editable */}
+                    <View style={{ backgroundColor: T.surface, borderRadius: 16, borderWidth: 1, borderColor: T.line, padding: 16, marginBottom: 10 }}>
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 12 }}>
+                        Datos de la factura
+                      </Text>
+                      <View style={{ gap: 10 }}>
+                        <View>
+                          <Text style={{ fontSize: 11, color: T.inkSoft, marginBottom: 4 }}>Proveedor</Text>
+                          <TextInput
+                            style={inputStyle}
+                            value={inv.supplier || ""}
+                            onChangeText={(v) => updateInvoiceField(invIdx, "supplier", v)}
+                            placeholder="Proveedor"
+                            placeholderTextColor={T.muted}
+                          />
+                        </View>
+                        <View style={{ flexDirection: "row", gap: 10 }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 11, color: T.inkSoft, marginBottom: 4 }}>Fecha</Text>
+                            <TextInput
+                              style={inputStyle}
+                              value={inv.invoice_date || ""}
+                              onChangeText={(v) => updateInvoiceField(invIdx, "invoice_date", v)}
+                              placeholder="YYYY-MM-DD"
+                              placeholderTextColor={T.muted}
+                            />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 11, color: T.inkSoft, marginBottom: 4 }}>Num. factura</Text>
+                            <TextInput
+                              style={inputStyle}
+                              value={inv.invoice_number || ""}
+                              onChangeText={(v) => updateInvoiceField(invIdx, "invoice_number", v)}
+                              placeholder="Opcional"
+                              placeholderTextColor={T.muted}
+                            />
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Items editables */}
+                    <View style={{ backgroundColor: T.surface, borderRadius: 16, borderWidth: 1, borderColor: T.line, padding: 16 }}>
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 12 }}>
+                        {inv.items?.length || 0} productos
+                      </Text>
+
+                      {(inv.items || []).map((item, itemIdx) => (
+                        <View
+                          key={itemIdx}
+                          style={{
+                            paddingVertical: 12,
+                            borderTopWidth: itemIdx > 0 ? 1 : 0,
+                            borderTopColor: T.line,
+                          }}
+                        >
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                            <TextInput
+                              style={[inputStyle, { flex: 1 }]}
+                              value={item.product_name || ""}
+                              onChangeText={(v) => updateItemField(invIdx, itemIdx, "product_name", v)}
+                              placeholder="Nombre del producto"
+                              placeholderTextColor={T.muted}
+                            />
+                            <TouchableOpacity
+                              onPress={() => removeItem(invIdx, itemIdx)}
+                              hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: 8,
+                                backgroundColor: T.primarySoft,
+                                justifyContent: "center",
+                                alignItems: "center",
+                              }}
+                            >
+                              <Trash2 size={14} color={T.primary} strokeWidth={2} />
+                            </TouchableOpacity>
+                          </View>
+                          <View style={{ flexDirection: "row", gap: 8 }}>
+                            <View style={{ flex: 1.2 }}>
+                              <Text style={{ fontSize: 10, color: T.inkSoft, marginBottom: 3 }}>Cantidad</Text>
+                              <TextInput
+                                style={inputStyle}
+                                value={item.quantity != null ? String(item.quantity) : ""}
+                                onChangeText={(v) => updateItemField(invIdx, itemIdx, "quantity", v === "" ? null : parseFloat(v) || v)}
+                                placeholder="0"
+                                placeholderTextColor={T.muted}
+                                keyboardType="decimal-pad"
+                              />
+                            </View>
+                            <View style={{ flex: 0.8 }}>
+                              <Text style={{ fontSize: 10, color: T.inkSoft, marginBottom: 3 }}>Unidad</Text>
+                              <TextInput
+                                style={inputStyle}
+                                value={item.unit || ""}
+                                onChangeText={(v) => updateItemField(invIdx, itemIdx, "unit", v)}
+                                placeholder="kg / L / ud"
+                                placeholderTextColor={T.muted}
+                                autoCapitalize="none"
+                              />
+                            </View>
+                            <View style={{ flex: 1.2 }}>
+                              <Text style={{ fontSize: 10, color: T.inkSoft, marginBottom: 3 }}>Precio/unidad</Text>
+                              <TextInput
+                                style={inputStyle}
+                                value={item.cost_per_unit_normalized != null ? String(item.cost_per_unit_normalized) : ""}
+                                onChangeText={(v) => updateItemField(invIdx, itemIdx, "cost_per_unit_normalized", v === "" ? null : parseFloat(v) || v)}
+                                placeholder="0.00"
+                                placeholderTextColor={T.muted}
+                                keyboardType="decimal-pad"
+                              />
+                            </View>
+                          </View>
+                        </View>
+                      ))}
+
+                      {(!inv.items || inv.items.length === 0) && (
+                        <Text style={{ fontSize: 13, color: T.muted, textAlign: "center", paddingVertical: 12 }}>
+                          Sin productos extraídos
+                        </Text>
+                      )}
+                    </View>
+                  </>
+                )}
+              </View>
+            ))}
+
+            <View style={{ gap: 10 }}>
+              <TouchableOpacity
+                activeOpacity={0.88}
+                onPress={confirmAndSave}
+                style={{
+                  backgroundColor: T.primary,
+                  borderRadius: 16,
+                  padding: 18,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ fontSize: 16, fontWeight: "600", color: "#fff" }}>
+                  Confirmar y guardar
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.88}
+                onPress={() => setStep("upload")}
+                style={{
+                  backgroundColor: T.surface,
+                  borderWidth: 1,
+                  borderColor: T.line,
+                  borderRadius: 16,
+                  padding: 14,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ fontSize: 14, color: T.inkSoft }}>Volver a seleccionar imágenes</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        )}
+
+        {/* ---- SAVING SPINNER ---- */}
+        {step === "saving" && (
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 24 }}>
             <View
               style={{
                 backgroundColor: T.surface,
@@ -149,297 +642,120 @@ export default function UploadInvoice() {
                 borderColor: T.line,
                 padding: 40,
                 alignItems: "center",
+                width: "100%",
               }}
             >
-              <View style={{ marginBottom: 20 }}>
-                <InvoiceIllustration />
-              </View>
               <ActivityIndicator size="small" color={T.primary} />
               <Text style={{ fontSize: 16, fontFamily: T.serif, color: T.ink, marginTop: 16 }}>
-                {progress.total > 1
-                  ? `Factura ${progress.current} de ${progress.total}`
-                  : "Analizando con IA"}
+                {spinnerText}
               </Text>
               <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 4 }}>
-                Esto puede tardar unos segundos
-              </Text>
-            </View>
-          ) : (
-            <View>
-              {/* Miniaturas de imágenes seleccionadas */}
-              {images.length > 0 && (
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: T.muted, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10 }}>
-                    {images.length} {images.length === 1 ? "imagen seleccionada" : "imágenes seleccionadas"}
-                  </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -4 }}>
-                    <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 4 }}>
-                      {images.map((img, idx) => (
-                        <View key={idx} style={{ position: "relative" }}>
-                          <Image
-                            source={{ uri: img.uri }}
-                            style={{ width: 100, height: 120, borderRadius: 10, backgroundColor: T.surface }}
-                            resizeMode="cover"
-                          />
-                          <TouchableOpacity
-                            onPress={() => removeImage(idx)}
-                            activeOpacity={0.8}
-                            style={{
-                              position: "absolute",
-                              top: 5,
-                              right: 5,
-                              width: 22,
-                              height: 22,
-                              borderRadius: 11,
-                              backgroundColor: "rgba(0,0,0,0.55)",
-                              justifyContent: "center",
-                              alignItems: "center",
-                            }}
-                          >
-                            <X size={12} color="#fff" strokeWidth={2.5} />
-                          </TouchableOpacity>
-                          <View
-                            style={{
-                              position: "absolute",
-                              bottom: 5,
-                              left: 5,
-                              backgroundColor: "rgba(0,0,0,0.45)",
-                              borderRadius: 5,
-                              paddingHorizontal: 5,
-                              paddingVertical: 2,
-                            }}
-                          >
-                            <Text style={{ fontSize: 10, color: "#fff", fontWeight: "600" }}>{idx + 1}</Text>
-                          </View>
-                        </View>
-                      ))}
-                    </View>
-                  </ScrollView>
-                </View>
-              )}
-
-              {/* Botones de añadir */}
-              <View style={{ gap: 10, marginBottom: 16 }}>
-                <TouchableOpacity
-                  activeOpacity={0.88}
-                  style={{
-                    backgroundColor: images.length === 0 ? T.primary : T.surface,
-                    borderWidth: images.length === 0 ? 0 : 1,
-                    borderColor: T.line,
-                    borderRadius: 16,
-                    padding: 18,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 14,
-                  }}
-                  onPress={addFromCamera}
-                >
-                  <View
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 10,
-                      backgroundColor: images.length === 0 ? "rgba(255,255,255,0.18)" : T.accentSoft,
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Camera color={images.length === 0 ? "#fff" : T.primary} size={20} strokeWidth={1.8} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: "600", color: images.length === 0 ? "#fff" : T.ink }}>
-                      {images.length === 0 ? "Tomar foto" : "Añadir otra foto"}
-                    </Text>
-                    <Text style={{ fontSize: 12, color: images.length === 0 ? T.accentSoft : T.inkSoft, marginTop: 1 }}>
-                      Usa la cámara del dispositivo
-                    </Text>
-                  </View>
-                  {images.length > 0 && <Plus size={18} color={T.muted} strokeWidth={2} />}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  activeOpacity={0.88}
-                  style={{
-                    backgroundColor: T.surface,
-                    borderWidth: 1,
-                    borderColor: T.line,
-                    borderRadius: 16,
-                    padding: 18,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 14,
-                  }}
-                  onPress={addFromGallery}
-                >
-                  <View
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 10,
-                      backgroundColor: T.accentSoft,
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    <FileText color={T.primary} size={20} strokeWidth={1.8} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: "600", color: T.ink }}>
-                      {images.length === 0 ? "Seleccionar de galería" : "Añadir de galería"}
-                    </Text>
-                    <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 1 }}>
-                      Selección múltiple permitida
-                    </Text>
-                  </View>
-                  {images.length > 0 && <Plus size={18} color={T.muted} strokeWidth={2} />}
-                </TouchableOpacity>
-              </View>
-
-              {/* Botón procesar */}
-              {images.length > 0 && (
-                <TouchableOpacity
-                  activeOpacity={0.88}
-                  onPress={processImages}
-                  style={{
-                    backgroundColor: T.primary,
-                    borderRadius: 16,
-                    padding: 18,
-                    alignItems: "center",
-                    marginBottom: 16,
-                  }}
-                >
-                  <Text style={{ fontSize: 16, fontWeight: "600", color: "#fff" }}>
-                    Procesar {images.length === 1 ? "1 imagen" : `${images.length} imágenes`}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {!images.length && (
-                <View style={{ alignItems: "center", paddingVertical: 16 }}>
-                  <InvoiceIllustration />
-                </View>
-              )}
-
-              {error && (
-                <View
-                  style={{
-                    backgroundColor: T.primarySoft,
-                    borderLeftWidth: 3,
-                    borderLeftColor: T.primary,
-                    borderRadius: 10,
-                    padding: 14,
-                    marginTop: 8,
-                    flexDirection: "row",
-                    gap: 10,
-                  }}
-                >
-                  <AlertCircle color={T.primary} size={18} strokeWidth={1.8} />
-                  <Text style={{ fontSize: 13, color: T.ink, flex: 1 }}>{error}</Text>
-                </View>
-              )}
-            </View>
-          )}
-        </ScrollView>
-      ) : (
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 100 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Cabecera resumen */}
-          <View style={{ backgroundColor: T.okSoft, borderRadius: 16, padding: 16, marginBottom: 16, flexDirection: "row", gap: 12, alignItems: "center" }}>
-            <View style={{ width: 40, height: 40, backgroundColor: T.ok, borderRadius: 20, justifyContent: "center", alignItems: "center" }}>
-              <Check color="#fff" size={20} strokeWidth={2.5} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontFamily: T.serif, color: T.ink }}>
-                {results.length === 1 ? "Factura procesada" : `${results.length} facturas procesadas`}
-              </Text>
-              <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 2 }}>
-                {results.filter((r) => !r.error).reduce((s, r) => s + (r.saved_items?.length || 0), 0)} productos extraídos en total
+                Actualizando productos y precios
               </Text>
             </View>
           </View>
+        )}
 
-          {/* Una tarjeta por factura */}
-          {results.map((res, idx) => (
-            <View key={idx} style={{ marginBottom: 16 }}>
-              {results.length > 1 && (
-                <Text style={{ fontSize: 10, fontWeight: "600", color: T.muted, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>
-                  Factura {idx + 1}
+        {/* ---- RESULTS ---- */}
+        {step === "results" && (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 100 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={{ backgroundColor: T.okSoft, borderRadius: 16, padding: 16, marginBottom: 16, flexDirection: "row", gap: 12, alignItems: "center" }}>
+              <View style={{ width: 40, height: 40, backgroundColor: T.ok, borderRadius: 20, justifyContent: "center", alignItems: "center" }}>
+                <Check color="#fff" size={20} strokeWidth={2.5} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontFamily: T.serif, color: T.ink }}>
+                  {results.length === 1 ? "Factura procesada" : `${results.length} facturas procesadas`}
                 </Text>
-              )}
+                <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 2 }}>
+                  {results.filter((r) => !r.error).reduce((s, r) => s + (r.saved_items?.length || 0), 0)} productos extraídos en total
+                </Text>
+              </View>
+            </View>
 
-              {res.error ? (
-                <View style={{ backgroundColor: T.primarySoft, borderLeftWidth: 3, borderLeftColor: T.primary, borderRadius: 10, padding: 14, flexDirection: "row", gap: 10 }}>
-                  <AlertCircle color={T.primary} size={18} strokeWidth={1.8} />
-                  <Text style={{ fontSize: 13, color: T.ink, flex: 1 }}>{res.error}</Text>
-                </View>
-              ) : (
-                <>
-                  <View style={{ backgroundColor: T.surface, borderRadius: 16, borderWidth: 1, borderColor: T.line, padding: 20, marginBottom: 10 }}>
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 14 }}>Detalles</Text>
-                    <View style={{ gap: 14 }}>
-                      {[
-                        { label: "Número de factura", value: res.invoice_data?.invoice_number || "N/A" },
-                        { label: "Proveedor", value: res.invoice_data?.supplier || "N/A" },
-                        { label: "Fecha", value: res.invoice_data?.invoice_date ? new Date(res.invoice_data.invoice_date).toLocaleDateString("es-ES") : "N/A" },
-                      ].map((row, i) => (
-                        <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 14 : 0, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: T.line }}>
-                          <Text style={{ fontSize: 12, color: T.inkSoft }}>{row.label}</Text>
-                          <Text style={{ fontSize: 14, color: T.ink, fontWeight: "500" }}>{row.value}</Text>
-                        </View>
-                      ))}
-                    </View>
+            {results.map((res, idx) => (
+              <View key={idx} style={{ marginBottom: 16 }}>
+                {results.length > 1 && (
+                  <Text style={{ fontSize: 10, fontWeight: "600", color: T.muted, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>
+                    Factura {idx + 1}
+                  </Text>
+                )}
+
+                {res.error ? (
+                  <View style={{ backgroundColor: T.primarySoft, borderLeftWidth: 3, borderLeftColor: T.primary, borderRadius: 10, padding: 14, flexDirection: "row", gap: 10 }}>
+                    <AlertCircle color={T.primary} size={18} strokeWidth={1.8} />
+                    <Text style={{ fontSize: 13, color: T.ink, flex: 1 }}>{res.error}</Text>
                   </View>
-
-                  <View style={{ backgroundColor: T.surface, borderRadius: 16, borderWidth: 1, borderColor: T.line, padding: 20, marginBottom: 10 }}>
-                    <Text style={{ fontSize: 18, fontFamily: T.serif, color: T.ink, marginBottom: 14, letterSpacing: -0.3 }}>Productos</Text>
-                    {res.saved_items?.map((item, i) => (
-                      <View key={i} style={{ paddingVertical: 12, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: T.line }}>
-                        <Text style={{ fontSize: 14, fontWeight: "500", color: T.ink }}>{item.product_name}</Text>
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
-                          <Text style={{ fontSize: 12, color: T.inkSoft }}>
-                            {parseFloat(item.quantity).toFixed(2)} × €{parseFloat(item.unit_price).toFixed(2)}
-                          </Text>
-                          <Text style={{ fontSize: 14, fontWeight: "600", color: T.primary }}>
-                            €{parseFloat(item.total_amount).toFixed(2)}
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-
-                  {res.alerts?.length > 0 && (
-                    <View style={{ backgroundColor: T.primarySoft, borderRadius: 16, padding: 20, marginBottom: 10 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                        <AlertCircle color={T.primary} size={16} strokeWidth={2} />
-                        <Text style={{ fontSize: 14, fontWeight: "600", color: T.ink }}>Alertas generadas</Text>
-                      </View>
-                      <View style={{ gap: 10 }}>
-                        {res.alerts.map((alert) => (
-                          <View key={alert.id} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
-                            <View style={{ width: 4, height: 4, backgroundColor: T.primary, borderRadius: 2, marginTop: 6 }} />
-                            <Text style={{ flex: 1, fontSize: 13, color: T.ink, lineHeight: 18 }}>{alert.message}</Text>
+                ) : (
+                  <>
+                    <View style={{ backgroundColor: T.surface, borderRadius: 16, borderWidth: 1, borderColor: T.line, padding: 20, marginBottom: 10 }}>
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 14 }}>Detalles</Text>
+                      <View style={{ gap: 14 }}>
+                        {[
+                          { label: "Número de factura", value: res.invoice_data?.invoice_number || "N/A" },
+                          { label: "Proveedor", value: res.invoice_data?.supplier || "N/A" },
+                          { label: "Fecha", value: res.invoice_data?.invoice_date ? new Date(res.invoice_data.invoice_date).toLocaleDateString("es-ES") : "N/A" },
+                        ].map((row, i) => (
+                          <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 14 : 0, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: T.line }}>
+                            <Text style={{ fontSize: 12, color: T.inkSoft }}>{row.label}</Text>
+                            <Text style={{ fontSize: 14, color: T.ink, fontWeight: "500" }}>{row.value}</Text>
                           </View>
                         ))}
                       </View>
                     </View>
-                  )}
-                </>
-              )}
-            </View>
-          ))}
 
-          <TouchableOpacity
-            activeOpacity={0.88}
-            style={{ backgroundColor: T.primary, borderRadius: 14, padding: 18, alignItems: "center" }}
-            onPress={reset}
-          >
-            <Text style={{ fontSize: 15, fontWeight: "600", color: "#fff" }}>Procesar más facturas</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      )}
-    </View>
+                    <View style={{ backgroundColor: T.surface, borderRadius: 16, borderWidth: 1, borderColor: T.line, padding: 20, marginBottom: 10 }}>
+                      <Text style={{ fontSize: 18, fontFamily: T.serif, color: T.ink, marginBottom: 14, letterSpacing: -0.3 }}>Productos</Text>
+                      {res.saved_items?.map((item, i) => (
+                        <View key={i} style={{ paddingVertical: 12, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: T.line }}>
+                          <Text style={{ fontSize: 14, fontWeight: "500", color: T.ink }}>{item.product_name}</Text>
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
+                            <Text style={{ fontSize: 12, color: T.inkSoft }}>
+                              {parseFloat(item.quantity).toFixed(2)} × €{parseFloat(item.unit_price).toFixed(2)}
+                            </Text>
+                            <Text style={{ fontSize: 14, fontWeight: "600", color: T.primary }}>
+                              €{parseFloat(item.total_amount).toFixed(2)}
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+
+                    {res.alerts?.length > 0 && (
+                      <View style={{ backgroundColor: T.primarySoft, borderRadius: 16, padding: 20, marginBottom: 10 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                          <AlertCircle color={T.primary} size={16} strokeWidth={2} />
+                          <Text style={{ fontSize: 14, fontWeight: "600", color: T.ink }}>Alertas generadas</Text>
+                        </View>
+                        <View style={{ gap: 10 }}>
+                          {res.alerts.map((alert) => (
+                            <View key={alert.id} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+                              <View style={{ width: 4, height: 4, backgroundColor: T.primary, borderRadius: 2, marginTop: 6 }} />
+                              <Text style={{ flex: 1, fontSize: 13, color: T.ink, lineHeight: 18 }}>{alert.message}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+                  </>
+                )}
+              </View>
+            ))}
+
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={{ backgroundColor: T.primary, borderRadius: 14, padding: 18, alignItems: "center" }}
+              onPress={reset}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "600", color: "#fff" }}>Procesar más facturas</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        )}
+      </View>
+    </KeyboardAvoidingView>
   );
 }
