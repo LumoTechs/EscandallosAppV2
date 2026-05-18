@@ -339,7 +339,10 @@ export default function Recipes() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [total, setTotal] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [creating, setCreating] = useState(false);
+  const PAGE_SIZE = 30;
 
   const [newName, setNewName] = useState("");
   const [newSalePrice, setNewSalePrice] = useState("");
@@ -357,17 +360,33 @@ export default function Recipes() {
     setError(null);
     try {
       const [recipesRes, productsRes] = await Promise.all([
-        apiFetch("/api/recipes"),
+        apiFetch(`/api/recipes?limit=${PAGE_SIZE}&offset=0`),
         apiFetch("/api/products/list"),
       ]);
       const rd = await recipesRes.json();
       const pd = await productsRes.json();
       setRecipes(rd.recipes || []);
+      setTotal(rd.total ?? null);
       setProducts(pd.products || []);
     } catch (e) {
       setError(e.message || "Error al cargar los escandallos");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMore = async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await apiFetch(`/api/recipes?limit=${PAGE_SIZE}&offset=${recipes.length}`);
+      const rd = await res.json();
+      setRecipes((prev) => [...prev, ...(rd.recipes || [])]);
+      setTotal(rd.total ?? null);
+    } catch (e) {
+      // no bloquear UX por error en carga adicional
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -919,6 +938,30 @@ export default function Recipes() {
                 </View>
               </View>
             ))
+          )}
+
+          {total !== null && recipes.length < total && (
+            <TouchableOpacity
+              onPress={loadMore}
+              disabled={loadingMore}
+              activeOpacity={0.8}
+              style={{
+                borderWidth: 1,
+                borderColor: T.line,
+                borderRadius: 14,
+                paddingVertical: 14,
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              {loadingMore ? (
+                <ActivityIndicator size="small" color={T.primary} />
+              ) : (
+                <Text style={{ fontSize: 14, fontWeight: "600", color: T.inkSoft }}>
+                  Cargar más ({recipes.length} de {total})
+                </Text>
+              )}
+            </TouchableOpacity>
           )}
 
           <TouchableOpacity

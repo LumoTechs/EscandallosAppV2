@@ -3,24 +3,34 @@ import { requireAuth } from '../_lib/auth.js';
 
 async function listRecipes(req, res) {
   try {
-    const rows = await query(`
-      SELECT
-        r.id,
-        r.name,
-        r.sale_price,
-        r.category,
-        r.target_food_cost_percentage,
-        r.image_url,
-        r.created_at,
-        COALESCE(SUM(ri.quantity * p.current_price), 0) AS total_cost,
-        COUNT(ri.id) AS ingredient_count
-      FROM recipes r
-      LEFT JOIN recipe_ingredients ri ON ri.recipe_id = r.id
-      LEFT JOIN products p ON p.id = ri.product_id
-      GROUP BY r.id, r.name, r.sale_price, r.category,
-               r.target_food_cost_percentage, r.image_url, r.created_at
-      ORDER BY r.created_at DESC
-    `);
+    const limit  = req.query.limit  ? Math.min(parseInt(req.query.limit)  || 30, 100) : null;
+    const offset = req.query.offset ? Math.max(parseInt(req.query.offset) || 0,  0)   : 0;
+
+    const paginationClause = limit ? `LIMIT $1 OFFSET $2` : '';
+    const params = limit ? [limit, offset] : [];
+
+    const [rows, countRows] = await Promise.all([
+      query(`
+        SELECT
+          r.id,
+          r.name,
+          r.sale_price,
+          r.category,
+          r.target_food_cost_percentage,
+          r.image_url,
+          r.created_at,
+          COALESCE(SUM(ri.quantity * p.current_price), 0) AS total_cost,
+          COUNT(ri.id) AS ingredient_count
+        FROM recipes r
+        LEFT JOIN recipe_ingredients ri ON ri.recipe_id = r.id
+        LEFT JOIN products p ON p.id = ri.product_id
+        GROUP BY r.id, r.name, r.sale_price, r.category,
+                 r.target_food_cost_percentage, r.image_url, r.created_at
+        ORDER BY r.created_at DESC
+        ${paginationClause}
+      `, params),
+      limit ? query('SELECT COUNT(*) AS total FROM recipes') : Promise.resolve(null),
+    ]);
 
     const enriched = rows.map((r) => {
       const salePrice = parseFloat(r.sale_price || 0);
@@ -41,7 +51,8 @@ async function listRecipes(req, res) {
       };
     });
 
-    return res.status(200).json({ recipes: enriched });
+    const total = countRows ? parseInt(countRows[0].total) : null;
+    return res.status(200).json({ recipes: enriched, ...(total !== null ? { total, limit, offset } : {}) });
   } catch (err) {
     console.error('Error fetching recipes:', err);
     return res.status(500).json({ error: err.message });
