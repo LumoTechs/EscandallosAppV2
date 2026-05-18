@@ -348,6 +348,7 @@ export default function Recipes() {
   const [newName, setNewName] = useState("");
   const [newSalePrice, setNewSalePrice] = useState("");
   const [newCategory, setNewCategory] = useState(null);
+  const [newTargetFoodCost, setNewTargetFoodCost] = useState("35");
   const [newIngredients, setNewIngredients] = useState([]);
   const [ingSearch, setIngSearch] = useState("");
   const [saving, setSaving] = useState(false);
@@ -428,6 +429,8 @@ export default function Recipes() {
   const liveSale = parseFloat(newSalePrice) || 0;
   const liveMargin = liveSale - liveCost;
   const liveFoodCost = liveSale > 0 ? (liveCost / liveSale) * 100 : 0;
+  const targetPct = Math.max(1, Math.min(100, parseFloat(newTargetFoodCost) || 35));
+  const suggestedPrice = liveCost > 0 ? liveCost / (targetPct / 100) : 0;
 
   const addIng = (productId) => {
     setNewIngredients([...newIngredients, { product_id: productId, quantity: 0.1 }]);
@@ -451,6 +454,7 @@ export default function Recipes() {
     setNewName("");
     setNewSalePrice("");
     setNewCategory(null);
+    setNewTargetFoodCost("35");
     setNewIngredients([]);
     setIngSearch("");
   };
@@ -475,6 +479,7 @@ export default function Recipes() {
           name: trimmedName,
           sale_price: salePrice,
           category: newCategory,
+          target_food_cost_percentage: targetPct,
           ingredients: newIngredients.map((i) => {
             const p = products.find((pr) => pr.id === i.product_id);
             return { product_id: i.product_id, quantity: i.quantity, unit: p?.unit || null };
@@ -599,6 +604,68 @@ export default function Recipes() {
                 style={{ flex: 1, fontSize: 20, fontFamily: T.serif, color: T.ink, paddingVertical: 4 }}
               />
             </View>
+
+            {/* Calculadora de precio sugerido */}
+            <View style={{ height: 1, backgroundColor: T.line, marginVertical: 14 }} />
+            <Text style={{ fontSize: 10, fontWeight: "600", color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 10 }}>
+              Calculadora de precio sugerido
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text style={{ fontSize: 13, color: T.inkSoft }}>Food cost objetivo</Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: T.line,
+                  borderRadius: 8,
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  backgroundColor: T.bg,
+                  gap: 2,
+                }}
+              >
+                <TextInput
+                  value={newTargetFoodCost}
+                  onChangeText={setNewTargetFoodCost}
+                  keyboardType="decimal-pad"
+                  style={{ fontSize: 15, fontFamily: T.serif, color: T.ink, width: 40, textAlign: "center" }}
+                />
+                <Text style={{ fontSize: 13, color: T.inkSoft }}>%</Text>
+              </View>
+            </View>
+            {suggestedPrice > 0 && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginTop: 10,
+                  backgroundColor: T.accentSoft,
+                  borderRadius: 10,
+                  padding: 12,
+                }}
+              >
+                <View>
+                  <Text style={{ fontSize: 11, color: T.inkSoft }}>Precio sugerido</Text>
+                  <Text style={{ fontSize: 20, fontFamily: T.serif, color: T.ink, letterSpacing: -0.5 }}>
+                    {fmtEUR(suggestedPrice)}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setNewSalePrice(suggestedPrice.toFixed(2))}
+                  activeOpacity={0.8}
+                  style={{
+                    backgroundColor: T.primary,
+                    borderRadius: 10,
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: "#fff" }}>Aplicar</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           {/* Categoría */}
