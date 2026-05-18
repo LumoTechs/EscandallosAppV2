@@ -342,6 +342,7 @@ export default function Recipes() {
   const [total, setTotal] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const PAGE_SIZE = 30;
 
   const [newName, setNewName] = useState("");
@@ -390,9 +391,15 @@ export default function Recipes() {
     }
   };
 
+  const filteredRecipes = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return recipes;
+    return recipes.filter((r) => r.name.toLowerCase().includes(q));
+  }, [recipes, searchQuery]);
+
   const grouped = useMemo(() => {
     const map = {};
-    for (const r of recipes) {
+    for (const r of filteredRecipes) {
       const key = r.category || "otros";
       if (!map[key]) map[key] = [];
       map[key].push(r);
@@ -400,7 +407,7 @@ export default function Recipes() {
     return CATEGORY_ORDER
       .map((key) => ({ key, cat: getCat(key), recipes: map[key] || [] }))
       .filter((g) => g.recipes.length > 0);
-  }, [recipes]);
+  }, [filteredRecipes]);
 
   const filteredForAdd = useMemo(() => {
     if (!ingSearch.trim()) return [];
@@ -833,16 +840,44 @@ export default function Recipes() {
     <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: insets.top }}>
       <StatusBar style="dark" />
 
-      <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 20 }}>
+      <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 16 }}>
         <Text style={{ fontSize: 11, fontWeight: "600", color: T.accent, letterSpacing: 2, textTransform: "uppercase" }}>
           Escandallos
         </Text>
         <Text style={{ fontSize: 30, fontFamily: T.serif, color: T.ink, letterSpacing: -0.6, marginTop: 6 }}>
           La carta
         </Text>
-        <Text style={{ fontSize: 14, color: T.inkSoft, marginTop: 4 }}>
+        <Text style={{ fontSize: 14, color: T.inkSoft, marginTop: 4, marginBottom: 14 }}>
           Calcula margen y food cost en vivo
         </Text>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+            backgroundColor: T.surface,
+            borderWidth: 1,
+            borderColor: T.line,
+            borderRadius: 12,
+            paddingHorizontal: 14,
+          }}
+        >
+          <Search size={15} color={T.muted} strokeWidth={2} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Buscar escandallo..."
+            placeholderTextColor={T.muted}
+            style={{ flex: 1, paddingVertical: 11, fontSize: 14, color: T.ink }}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+              <X size={14} color={T.muted} strokeWidth={2.5} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {error ? (
@@ -882,6 +917,19 @@ export default function Recipes() {
               <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 4 }}>
                 Crea el primero para ver márgenes
               </Text>
+            </View>
+          ) : filteredRecipes.length === 0 ? (
+            <View style={{ paddingVertical: 48, alignItems: "center" }}>
+              <Search size={36} color={T.line} strokeWidth={1.5} />
+              <Text style={{ fontSize: 15, fontFamily: T.serif, color: T.ink, marginTop: 16 }}>
+                Sin resultados
+              </Text>
+              <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 4 }}>
+                No hay escandallos que coincidan con "{searchQuery}"
+              </Text>
+              <TouchableOpacity onPress={() => setSearchQuery("")} style={{ marginTop: 14, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, borderRadius: 10 }}>
+                <Text style={{ fontSize: 13, color: T.inkSoft }}>Limpiar búsqueda</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             grouped.map((group) => (
