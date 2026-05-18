@@ -1,5 +1,6 @@
 // api/products/[id]
-// GET    → producto + change_percentage + used_in_recipes_count
+// GET                        → producto + change_percentage + used_in_recipes_count
+// GET ?history=true&range=x  → histórico de precios + stats (fusionado desde history.js)
 // PATCH  → actualizar name | current_price | unit (si cambia precio, también log en product_prices)
 // DELETE → borrar producto (bloqueado si está usado en alguna receta)
 
@@ -7,6 +8,8 @@ import { getAdminClient } from '../../_lib/supabase.js';
 import { requireAuth } from '../../_lib/auth.js';
 
 const ALLOWED_UNITS = new Set(['kg', 'L', 'ud']);
+
+const RANGE_DAYS = { '1m': 30, '6m': 180, '1y': 365 };
 
 async function handler(req, res) {
   const { id } = req.query;
@@ -16,6 +19,10 @@ async function handler(req, res) {
   }
 
   const supabase = getAdminClient();
+
+  if (req.method === 'GET' && req.query.history) {
+    return handleHistory(supabase, id, req.query.range || '6m', res);
+  }
 
   if (req.method === 'GET') {
     return handleGet(supabase, id, res);
@@ -191,6 +198,34 @@ async function handleDelete(supabase, id, res) {
     return res.status(200).json({ success: true });
   } catch (err) {
     console.error('Unexpected error in DELETE product:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+async function handleHistory(supabase, id, range, res) {
+  try {
+    let query = supabase
+      .from('product_prices')
+      .select('price, created_at')
+      .eq('product_id', id)
+      .order('created_at', { ascending: true });
+
+    if (range !== 'all') {
+      const days = RANGE_DAYS[range] ?? 180;
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+      query = query.gte('created_at', since);
+    }
+
+    const { data, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+
+    const history = (data || []).map((row) => ({ date: row.created_at, price: parseFloat(row.price) }));
+    const stats = history.length > 0
+      ? { min: Math.min(...history.map((h) => h.price)), max: Math.max(...history.map((h) => h.price)), points: history.length }
+      : null;
+
+    return res.status(200).json({ history, stats });
+  } catch (err) {
     return res.status(500).json({ error: err.message });
   }
 }

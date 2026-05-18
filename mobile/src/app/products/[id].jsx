@@ -210,7 +210,7 @@ export default function ProductDetail() {
       setLoading(true);
       const [pRes, hRes] = await Promise.all([
         apiFetch(`/api/products/${id}`),
-        apiFetch(`/api/products/${id}/history?range=6m`),
+        apiFetch(`/api/products/${id}?history=true&range=6m`),
       ]);
       if (!pRes.ok) throw new Error(`Producto: ${pRes.status}`);
       const pData = await pRes.json();
@@ -242,7 +242,7 @@ export default function ProductDetail() {
       setProduct((prev) => ({ ...prev, ...data.product }));
       // si cambió el precio, recargamos historial
       if (body.current_price !== undefined) {
-        const hRes = await apiFetch(`/api/products/${id}/history?range=6m`);
+        const hRes = await apiFetch(`/api/products/${id}?history=true&range=6m`);
         const hData = await hRes.json();
         setHistory(hData.history || []);
         setStats(hData.stats);
