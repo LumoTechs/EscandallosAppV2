@@ -29,6 +29,7 @@ import {
   ChevronRight,
   Edit3,
   Check,
+  X,
 } from "lucide-react-native";
 import { T } from "../../theme";
 import { apiFetch } from "../../utils/apiFetch";
@@ -148,6 +149,11 @@ function InlineEdit({ value, onSave, prefix = "", suffix = "", fontSize = 16, fo
     if (local !== String(value)) onSave(local);
   };
 
+  const cancel = () => {
+    setEditing(false);
+    setLocal(String(value ?? ""));
+  };
+
   if (editing) {
     return (
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -155,7 +161,6 @@ function InlineEdit({ value, onSave, prefix = "", suffix = "", fontSize = 16, fo
         <TextInput
           value={local}
           onChangeText={setLocal}
-          onBlur={commit}
           onSubmitEditing={commit}
           autoFocus
           keyboardType={typeof value === "number" ? "decimal-pad" : "default"}
@@ -170,8 +175,11 @@ function InlineEdit({ value, onSave, prefix = "", suffix = "", fontSize = 16, fo
           }}
         />
         <Text style={{ fontSize, color: T.inkSoft }}>{suffix}</Text>
-        <TouchableOpacity onPress={commit} style={{ marginLeft: 4 }}>
+        <TouchableOpacity onPress={commit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Check color={T.ok} size={16} strokeWidth={2.4} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={cancel} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <X color={T.muted} size={16} strokeWidth={2.2} />
         </TouchableOpacity>
       </View>
     );
