@@ -23,14 +23,17 @@ const queryClient = new QueryClient({
   },
 });
 
-const PUBLIC_ROUTES = new Set(['login', 'planes', 'legal']);
+const PUBLIC_ROUTES = new Set(['login', 'planes', 'legal', 'demo-costes']);
+const PUBLIC_HOSTS = new Set(['casadiego.lumotech.app']);
 
 function AuthGate({ children }) {
   const { isReady, isAuthenticated, user } = useSession();
   const restaurantQuery = useCurrentRestaurant();
   const router = useRouter();
   const segments = useSegments();
-  const onPublic = PUBLIC_ROUTES.has(segments[0]);
+  const firstSegment = segments[0]?.replace(/\.html$/, '');
+  const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
+  const onPublic = PUBLIC_HOSTS.has(currentHost) || PUBLIC_ROUTES.has(firstSegment);
   const onLogin = segments[0] === 'login';
   const onSetup = segments[0] === 'setup';
   const onLegal = segments[0] === 'legal';
@@ -137,6 +140,7 @@ export default function RootLayout() {
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="login" options={{ animation: 'fade' }} />
                 <Stack.Screen name="planes" options={{ animation: 'fade' }} />
+                <Stack.Screen name="demo-costes" options={{ animation: 'fade' }} />
                 <Stack.Screen name="setup" options={{ animation: 'fade' }} />
                 <Stack.Screen name="legal" options={{ animation: 'slide_from_right' }} />
                 <Stack.Screen name="legal-acceptance" options={{ animation: 'slide_from_right' }} />
