@@ -21,6 +21,7 @@ import {
   CircleDollarSign,
   FileText,
   PackageSearch,
+  RotateCcw,
   ScanLine,
   ShieldCheck,
   TrendingDown,
@@ -33,6 +34,12 @@ const PERIODS = [
   { key: "service", label: "Servicio", multiplier: 1 },
   { key: "week", label: "Semana", multiplier: 6 },
   { key: "month", label: "Mes", multiplier: 26 },
+];
+
+const VALUE_STEPS = [
+  { number: "01", title: "Captura", detail: "Factura a costes", icon: Camera },
+  { number: "02", title: "Detecta", detail: "Desviaciones y alertas", icon: AlertTriangle },
+  { number: "03", title: "Decide", detail: "Precio, proveedor y merma", icon: Calculator },
 ];
 
 const DISHES = [
@@ -49,7 +56,7 @@ const DISHES = [
       { name: "Choco limpio", qty: "220 g", cost: 3.92 },
       { name: "Aceite alto oleico", qty: "55 ml", cost: 0.68 },
       { name: "Harina especial", qty: "45 g", cost: 0.16 },
-      { name: "Limon y sal", qty: "1 ud", cost: 0.18 },
+      { name: "Limón y sal", qty: "1 ud", cost: 0.18 },
     ],
   },
   {
@@ -70,15 +77,15 @@ const DISHES = [
   },
   {
     id: "adobo",
-    name: "Cazon en adobo",
-    category: "Clasicos",
+    name: "Cazón en adobo",
+    category: "Clásicos",
     price: 10.5,
     units: 52,
     target: 33,
     color: "#4F7A3C",
     soft: "#ECF3E5",
     ingredients: [
-      { name: "Cazon", qty: "180 g", cost: 2.42 },
+      { name: "Cazón", qty: "180 g", cost: 2.42 },
       { name: "Adobo", qty: "45 g", cost: 0.22 },
       { name: "Aceite alto oleico", qty: "42 ml", cost: 0.52 },
       { name: "Harina especial", qty: "35 g", cost: 0.13 },
@@ -94,10 +101,10 @@ const DISHES = [
     color: "#1A7A8A",
     soft: "#E0F7F9",
     ingredients: [
-      { name: "Boqueron", qty: "110 g", cost: 1.12 },
+      { name: "Boquerón", qty: "110 g", cost: 1.12 },
       { name: "Puntillitas", qty: "90 g", cost: 1.58 },
-      { name: "Acedias", qty: "75 g", cost: 1.06 },
-      { name: "Aceite y harina", qty: "1 racion", cost: 0.78 },
+      { name: "Acedías", qty: "75 g", cost: 1.06 },
+      { name: "Aceite y harina", qty: "1 ración", cost: 0.78 },
     ],
   },
   {
@@ -119,7 +126,7 @@ const DISHES = [
   {
     id: "ensaladilla",
     name: "Ensaladilla de marisco",
-    category: "Frio",
+    category: "Frío",
     price: 7.8,
     units: 29,
     target: 31,
@@ -135,15 +142,15 @@ const DISHES = [
 ];
 
 const SUPPLIERS = [
-  { product: "Aceite alto oleico 25 L", current: "Distribuciones Costa", currentPrice: 56.2, best: "Mayorista Bahia", bestPrice: 51.4, change: 12.9 },
+  { product: "Aceite alto oleico 25 L", current: "Distribuciones Costa", currentPrice: 56.2, best: "Mayorista Bahía", bestPrice: 51.4, change: 12.9 },
   { product: "Calamar nacional kg", current: "Lonja Sur", currentPrice: 19.4, best: "Pescados Diego", bestPrice: 18.1, change: 7.2 },
-  { product: "Choco limpio kg", current: "Mariscos Bahia", currentPrice: 17.8, best: "Mariscos Bahia", bestPrice: 17.8, change: 18.4 },
-  { product: "Gamba pelada kg", current: "Congelados Atlantico", currentPrice: 16.5, best: "Congelados Atlantico", bestPrice: 16.5, change: -2.1 },
+  { product: "Choco limpio kg", current: "Mariscos Bahía", currentPrice: 17.8, best: "Mariscos Bahía", bestPrice: 17.8, change: 18.4 },
+  { product: "Gamba pelada kg", current: "Congelados Atlántico", currentPrice: 16.5, best: "Congelados Atlántico", bestPrice: 16.5, change: -2.1 },
 ];
 
 const ALERTS = [
-  { title: "Choco limpio", detail: "sube 18,4% frente a la ultima compra", severity: "high" },
-  { title: "Aceite alto oleico", detail: "hay 4,80 EUR de diferencia por garrafa", severity: "high" },
+  { title: "Choco limpio", detail: "sube 18,4% frente a la última compra", severity: "high" },
+  { title: "Aceite alto oleico", detail: "hay 4,80 € de diferencia por garrafa", severity: "high" },
   { title: "Calamares fritos", detail: "food cost por encima del objetivo", severity: "medium" },
 ];
 
@@ -168,14 +175,14 @@ const OCR_RESULT = {
   tax: 16.94,
   total: 186.42,
   lines: [
-    { product: "Calamar nacional", qty: "8,4 kg", unitPrice: 18.1, total: 152.04, effect: "-1,30 EUR/kg vs ultimo precio" },
+    { product: "Calamar nacional", qty: "8,4 kg", unitPrice: 18.1, total: 152.04, effect: "-1,30 €/kg vs. último precio" },
     { product: "Limones malla", qty: "4 kg", unitPrice: 1.42, total: 5.68, effect: "nuevo precio confirmado" },
-    { product: "Harina especial fritura", qty: "10 kg", unitPrice: 1.18, total: 11.8, effect: "+0,06 EUR/kg" },
+    { product: "Harina especial fritura", qty: "10 kg", unitPrice: 1.18, total: 11.8, effect: "+0,06 €/kg" },
   ],
   updates: [
     "Actualiza coste de Calamares fritos: 36,9% -> 33,8%",
-    "Crea alerta si el proximo proveedor supera 18,10 EUR/kg",
-    "Deja la factura en revision humana antes de guardar",
+    "Crea alerta si el próximo proveedor supera 18,10 €/kg",
+    "Deja la factura en revisión humana antes de guardar",
   ],
 };
 
@@ -190,7 +197,7 @@ function eur(value, digits = 0) {
   return `${Number(value).toLocaleString("es-ES", {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
-  })} EUR`;
+  })} €`;
 }
 
 function pct(value) {
@@ -373,6 +380,49 @@ function Kpi({ icon: Icon, label, value, sub, tone = T.primary }) {
   );
 }
 
+function ValueStep({ number, title, detail, icon: Icon }) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        minWidth: 150,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.14)",
+        backgroundColor: "rgba(255,255,255,0.06)",
+        borderRadius: 12,
+        padding: 11,
+      }}
+    >
+      <View
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 10,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: T.accent,
+        }}
+      >
+        <Icon size={16} color="#fff" strokeWidth={2.3} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 9, fontWeight: "900", color: T.accent, letterSpacing: 1.2 }}>
+          PASO {number}
+        </Text>
+        <Text style={{ fontSize: 13, fontWeight: "800", color: "#fff", marginTop: 2 }}>
+          {title}
+        </Text>
+        <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.58)", marginTop: 2 }} numberOfLines={1}>
+          {detail}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 function Segmented({ options, value, onChange }) {
   return (
     <View
@@ -538,13 +588,22 @@ export default function CostControlDemo() {
     { revenue: 0, cost: 0, margin: 0, risk: 0 },
   );
   const avgFoodCost = totals.revenue > 0 ? (totals.cost / totals.revenue) * 100 : 0;
-  const baselineSelectedCost = dishCost(selectedDish, { oilDeal: false, wasteControl: false });
-  const selectedAdjustedCost = dishCost(selectedDish, options);
-  const monthlyImpact =
-    ((selectedDish.price + priceDelta - selectedAdjustedCost) -
-      (selectedDish.price - baselineSelectedCost)) *
-    selectedDish.units *
-    26;
+  const monthlyPriceImpact = priceDelta * selectedDish.units * 26;
+  const monthlyCostImpact = DISHES.reduce((sum, dish) => {
+    const baselineCost = dishCost(dish, { oilDeal: false, wasteControl: false });
+    return sum + (baselineCost - dishCost(dish, options)) * dish.units * 26;
+  }, 0);
+  const monthlyImpact = monthlyPriceImpact + monthlyCostImpact;
+
+  const resetDemo = () => {
+    setPeriodKey("service");
+    setSelectedDishId("calamares");
+    setPriceDelta(0.5);
+    setOilDeal(true);
+    setWasteControl(false);
+    setOcrPhotoUri(null);
+    setOcrPhotoName("foto-demo-casa-diego.jpg");
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: insets.top }}>
@@ -587,10 +646,10 @@ export default function CostControlDemo() {
                     marginTop: 7,
                   }}
                 >
-                  Casa Diego Marisqueria
+                  Casa Diego Marisquería
                 </Text>
                 <Text style={{ fontSize: 14, color: T.inkSoft, marginTop: 6, lineHeight: 20, maxWidth: 680 }}>
-                  Marisco, fritura y producto fresco con control diario de compras, facturas y margen por plato.
+                  Control diario de compras, facturas y margen por plato para proteger la rentabilidad sin perder calidad.
                 </Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 13 }}>
                   {PROFILE_STATS.map((item) => (
@@ -617,7 +676,7 @@ export default function CostControlDemo() {
                     paddingVertical: 12,
                   }}
                 >
-                  <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" }}>Entrar a GastroCost</Text>
+                  <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" }}>Acceso clientes</Text>
                   <ArrowUpRight color="#fff" size={15} />
                 </TouchableOpacity>
               </View>
@@ -626,6 +685,50 @@ export default function CostControlDemo() {
               {HOME_SHOTS.map((item, index) => (
                 <GalleryTile key={item.title} item={item} index={index} />
               ))}
+            </View>
+          </View>
+
+          <View
+            style={{
+              backgroundColor: T.ink,
+              borderRadius: 16,
+              padding: compact ? 16 : 20,
+              marginBottom: 14,
+              overflow: "hidden",
+            }}
+          >
+            <View style={{ flexDirection: compact ? "column" : "row", alignItems: compact ? "stretch" : "center", gap: 18 }}>
+              <View style={{ minWidth: compact ? "100%" : 290 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <Text style={{ fontSize: 10, fontWeight: "900", color: T.accent, letterSpacing: 1.7 }}>
+                    OPORTUNIDAD MENSUAL
+                  </Text>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={resetDemo}
+                    accessibilityRole="button"
+                    accessibilityLabel="Restablecer escenario de demostración"
+                    style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 5 }}
+                  >
+                    <RotateCcw size={13} color="rgba(255,255,255,0.62)" />
+                    <Text style={{ fontSize: 10, fontWeight: "800", color: "rgba(255,255,255,0.62)" }}>
+                      Restablecer
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={{ fontSize: compact ? 40 : 48, fontFamily: T.serif, color: "#fff", marginTop: 5, letterSpacing: -1.4 }}>
+                  {monthlyImpact >= 0 ? "+" : ""}{eur(monthlyImpact)}
+                </Text>
+                <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.62)", lineHeight: 18, marginTop: 3, maxWidth: 360 }}>
+                  Margen potencial con el escenario activo. La cifra se recalcula al cambiar precio, proveedor o merma.
+                </Text>
+              </View>
+
+              <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {VALUE_STEPS.map((step) => (
+                  <ValueStep key={step.number} {...step} />
+                ))}
+              </View>
             </View>
           </View>
 
@@ -699,17 +802,17 @@ export default function CostControlDemo() {
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
                       <Text style={{ fontSize: 10, fontWeight: "800", color: T.accent, letterSpacing: 1.8, textTransform: "uppercase" }}>
-                        OCR facturas con foto
+                        Paso 01 · Captura
                       </Text>
                       <View style={{ backgroundColor: T.okSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}>
-                        <Text style={{ fontSize: 9, fontWeight: "800", color: T.ok }}>LECTURA IA</Text>
+                        <Text style={{ fontSize: 9, fontWeight: "800", color: T.ok }}>RESULTADO DEMO</Text>
                       </View>
                     </View>
                     <Text style={{ fontSize: 24, fontFamily: T.serif, color: T.ink, marginTop: 6, letterSpacing: -0.5 }}>
-                      Subir foto, extraer lineas y actualizar costes
+                      De una foto a costes actualizados
                     </Text>
                     <Text style={{ fontSize: 12, color: T.inkSoft, lineHeight: 18, marginTop: 5 }}>
-                      Demo offline: la foto se previsualiza en local y el resultado muestra el flujo que luego ejecuta la IA real.
+                      En esta demo la foto permanece en tu dispositivo. El flujo real extrae las líneas con IA y exige revisión humana antes de guardar.
                     </Text>
                   </View>
                   <ScanLine color={T.primary} size={22} />
@@ -814,7 +917,7 @@ export default function CostControlDemo() {
                       Escandallos vivos
                     </Text>
                     <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 3 }}>
-                      Ranking por desviacion de food cost
+                      Paso 02 · Detecta desviaciones de food cost
                     </Text>
                   </View>
                   <ChefHat color={T.primary} size={20} />
@@ -926,7 +1029,7 @@ export default function CostControlDemo() {
                 <View style={{ flexDirection: compact ? "column" : "row", gap: 18, alignItems: compact ? "stretch" : "center" }}>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 10, fontWeight: "800", color: T.accent, letterSpacing: 1.8, textTransform: "uppercase" }}>
-                      Simulador de decision
+                      Paso 03 · Decide
                     </Text>
                     <Text style={{ fontSize: 26, fontFamily: T.serif, color: "#fff", marginTop: 6, letterSpacing: -0.6 }}>
                       {selectedDish.name}
@@ -937,6 +1040,18 @@ export default function CostControlDemo() {
                     <Text style={{ fontSize: 42, fontFamily: T.serif, color: monthlyImpact >= 0 ? "#fff" : T.accent, marginTop: 12, letterSpacing: -1.2 }}>
                       {monthlyImpact >= 0 ? "+" : ""}{eur(monthlyImpact)}
                     </Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 10 }}>
+                      <View style={{ borderRadius: 999, backgroundColor: "rgba(255,255,255,0.08)", paddingHorizontal: 9, paddingVertical: 6 }}>
+                        <Text style={{ fontSize: 10, fontWeight: "800", color: "rgba(255,255,255,0.74)" }}>
+                          PVP {monthlyPriceImpact >= 0 ? "+" : ""}{eur(monthlyPriceImpact)}/mes
+                        </Text>
+                      </View>
+                      <View style={{ borderRadius: 999, backgroundColor: "rgba(255,255,255,0.08)", paddingHorizontal: 9, paddingVertical: 6 }}>
+                        <Text style={{ fontSize: 10, fontWeight: "800", color: "rgba(255,255,255,0.74)" }}>
+                          Compras y merma +{eur(monthlyCostImpact)}/mes
+                        </Text>
+                      </View>
+                    </View>
                   </View>
                   <View style={{ minWidth: compact ? "100%" : 330, gap: 10 }}>
                     <View style={{ flexDirection: "row", gap: 7 }}>
@@ -956,7 +1071,7 @@ export default function CostControlDemo() {
                           }}
                         >
                           <Text style={{ color: "#fff", fontWeight: "800", fontSize: 12 }}>
-                            {delta > 0 ? `+${delta.toFixed(2)}` : delta.toFixed(2)} EUR
+                            {delta > 0 ? `+${delta.toFixed(2).replace(".", ",")}` : delta.toFixed(2).replace(".", ",")} €
                           </Text>
                         </TouchableOpacity>
                       ))}
@@ -1030,7 +1145,7 @@ export default function CostControlDemo() {
                   Tendencia food cost
                 </Text>
                 <Text style={{ fontSize: 12, color: T.inkSoft, marginTop: 3, marginBottom: 12 }}>
-                  Ultimas 8 semanas
+                  Últimas 8 semanas
                 </Text>
                 <MiniTrend data={[30.8, 31.4, 32.1, 33.6, 34.2, 33.1, 32.4, avgFoodCost]} width={chartWidth} />
                 <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
